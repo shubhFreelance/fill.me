@@ -1,5 +1,6 @@
 import { body, validationResult, ValidationChain } from 'express-validator';
 import { Request, Response, NextFunction } from 'express';
+import ValidationService from '../services/ValidationService';
 
 // Validation error interface
 interface ValidationError {
@@ -165,8 +166,19 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
-// Validation middleware with error handling
-export const withValidation = (validations: ValidationChain[]) => {
+// Enhanced validation middleware with security checks
+export const withValidation = (validations: ValidationChain[], options?: any) => {
+  const enhancedValidator = ValidationService.createValidator(validations, {
+    sanitize: true,
+    securityChecks: true,
+    ...options
+  });
+  
+  return [enhancedValidator];
+};
+
+// Legacy validation middleware (kept for backward compatibility)
+export const withBasicValidation = (validations: ValidationChain[]) => {
   return [...validations, handleValidationErrors];
 };
 
@@ -178,5 +190,8 @@ export default {
   validateFileUpload,
   handleValidationErrors,
   isValidEmail,
-  withValidation
+  withValidation,
+  withBasicValidation,
+  // Export enhanced validation service for direct use
+  ValidationService
 };

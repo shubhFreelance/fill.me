@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
+import { submissionRateLimit, uploadRateLimit } from '../middleware/rateLimiting';
 
 const router = express.Router();
 
@@ -37,17 +37,7 @@ const fileUpload = multer({
   }
 });
 
-// Rate limiting for form submissions
-const submissionLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 submissions per windowMs
-  message: {
-    success: false,
-    message: 'Too many form submissions, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+
 
 // File info interface
 interface FileInfo {
@@ -103,7 +93,7 @@ router.get('/forms/:publicUrl', async (req: Request, res: Response): Promise<voi
  * @desc    Submit response to public form
  * @access  Public
  */
-router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), async (req: Request, res: Response): Promise<void> => {
+router.post('/forms/:publicUrl/submit', submissionRateLimit, uploadRateLimit, fileUpload.any(), async (req: Request, res: Response): Promise<void> => {
   try {
     let { responses, metadata }: SubmitFormBody = req.body;
 

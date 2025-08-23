@@ -673,6 +673,161 @@ export interface IGDPRValidationResult {
   recommendation: string;
 }
 
+// API Key Management interfaces
+export type IAPIKeyType = 'read_only' | 'read_write' | 'admin' | 'webhook' | 'public';
+
+export interface IAPIKey {
+  id: string;
+  name: string;
+  keyType: IAPIKeyType;
+  hashedKey: string;
+  keyPreview: string;
+  permissions: IAPIKeyPermissions;
+  scopes: string[];
+  rateLimit: IAPIKeyRateLimit;
+  restrictions: IAPIKeyRestrictions;
+  isActive: boolean;
+  lastUsedAt: Date | null;
+  usageCount: number;
+  createdAt: Date;
+  expiresAt: Date | null;
+  revokedAt?: Date;
+  metadata: {
+    createdBy: string;
+    createdFrom: string;
+    userAgent?: string;
+    ipAddress?: string;
+  };
+}
+
+export interface IAPIKeyPermissions {
+  forms: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  responses: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  analytics: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  webhooks: { read: boolean; create: boolean; update: boolean; delete: boolean };
+  users: { read: boolean; create: boolean; update: boolean; delete: boolean };
+}
+
+export interface IAPIKeyRateLimit {
+  requestsPerMinute: number;
+  requestsPerHour: number;
+  requestsPerDay: number;
+}
+
+export interface IAPIKeyRestrictions {
+  allowedIPs?: string[];
+  allowedDomains?: string[];
+  allowedFormIds?: string[];
+  deniedEndpoints?: string[];
+}
+
+export interface IAPIKeyCreateData {
+  name: string;
+  keyType: IAPIKeyType;
+  permissions?: IAPIKeyPermissions;
+  scopes?: string[];
+  rateLimit?: IAPIKeyRateLimit;
+  restrictions?: IAPIKeyRestrictions;
+  expiresAt?: Date;
+  createdFrom?: string;
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+export interface IAPIKeyUpdateData {
+  name?: string;
+  permissions?: IAPIKeyPermissions;
+  scopes?: string[];
+  rateLimit?: IAPIKeyRateLimit;
+  restrictions?: IAPIKeyRestrictions;
+  expiresAt?: Date;
+}
+
+export interface IAPIKeyResponse {
+  success: boolean;
+  apiKey: {
+    id: string;
+    name: string;
+    keyType: IAPIKeyType;
+    key: string;
+    keyPreview: string;
+    permissions: IAPIKeyPermissions;
+    scopes: string[];
+    rateLimit: IAPIKeyRateLimit;
+    restrictions: IAPIKeyRestrictions;
+    isActive: boolean;
+    createdAt: Date;
+    expiresAt: Date | null;
+  };
+  usage: {
+    currentKeys: number;
+    maxKeys: number;
+    plan: string;
+  };
+}
+
+export interface IAPIKeyValidation {
+  isValid: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    plan: string;
+  };
+  apiKey?: {
+    id: string;
+    name: string;
+    keyType: IAPIKeyType;
+    permissions: IAPIKeyPermissions;
+    scopes: string[];
+    rateLimit: IAPIKeyRateLimit;
+    restrictions: IAPIKeyRestrictions;
+  };
+  error?: string;
+}
+
+export interface IAPIKeyListResponse {
+  apiKeys: Array<{
+    id: string;
+    name: string;
+    keyType: IAPIKeyType;
+    keyPreview: string;
+    permissions: IAPIKeyPermissions;
+    scopes: string[];
+    rateLimit: IAPIKeyRateLimit;
+    restrictions: IAPIKeyRestrictions;
+    isActive: boolean;
+    lastUsedAt: Date | null;
+    usageCount: number;
+    createdAt: Date;
+    expiresAt: Date | null;
+  }>;
+  summary: {
+    totalKeys: number;
+    activeKeys: number;
+    expiredKeys: number;
+    maxKeys: number;
+    plan: string;
+  };
+}
+
+export interface IAPIKeyUsageStats {
+  totalKeys: number;
+  activeKeys: number;
+  totalUsage: number;
+  recentUsage: number;
+  expiredKeys: number;
+  keyBreakdown: Array<{
+    id: string;
+    name: string;
+    keyType: IAPIKeyType;
+    usageCount: number;
+    lastUsedAt: Date | null;
+    isActive: boolean;
+    isExpired: boolean;
+  }>;
+}
+
 export interface IPasswordProtection {
   enabled: boolean;
   password?: string;

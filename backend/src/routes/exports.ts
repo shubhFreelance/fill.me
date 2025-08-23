@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { protect, AuthenticatedRequest } from '../middleware/auth';
 import { withValidation } from '../middleware/validation';
 import { body, query, param } from 'express-validator';
+import { exportRateLimit } from '../middleware/rateLimiting';
 import ExportService from '../services/ExportService';
 import Form from '../models/Form';
 
@@ -77,7 +78,7 @@ const validateBulkExportRequest = [
  * @desc    Export form responses to Excel format
  * @access  Private
  */
-router.get('/:formId/excel', protect, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/:formId/excel', protect, exportRateLimit, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { formId } = req.params;
     
@@ -133,7 +134,7 @@ router.get('/:formId/excel', protect, withValidation(validateExportRequest), asy
  * @desc    Export form responses to PDF format
  * @access  Private
  */
-router.get('/:formId/pdf', protect, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/:formId/pdf', protect, exportRateLimit, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { formId } = req.params;
     
@@ -189,7 +190,7 @@ router.get('/:formId/pdf', protect, withValidation(validateExportRequest), async
  * @desc    Export form responses to CSV format
  * @access  Private
  */
-router.get('/:formId/csv', protect, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/:formId/csv', protect, exportRateLimit, withValidation(validateExportRequest), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { formId } = req.params;
     

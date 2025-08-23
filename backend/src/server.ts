@@ -3,9 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
+import { generalRateLimit } from './middleware/rateLimiting';
 
 // Load environment variables
 dotenv.config();
@@ -38,6 +38,8 @@ import dateFilterRoutes from './routes/dateFilters';
 import partialSubmissionRoutes from './routes/partialSubmissions';
 import exportRoutes from './routes/exports';
 import gdprRoutes from './routes/gdpr';
+import apiKeyRoutes from './routes/apiKeys';
+import adminRoutes from './routes/admin';
 import errorHandler from './middleware/errorHandler';
 import { EnvironmentConfig } from './types';
 
@@ -68,17 +70,8 @@ app.use(helmet({
   },
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10), // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
+// Enhanced rate limiting with dynamic configuration
+app.use('/api/', generalRateLimit);
 
 // CORS configuration
 const corsOptions: cors.CorsOptions = {
@@ -165,6 +158,8 @@ app.use('/api/date-filters', dateFilterRoutes);
 app.use('/api/partial-submissions', partialSubmissionRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/gdpr', gdprRoutes);
+app.use('/api/api-keys', apiKeyRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {

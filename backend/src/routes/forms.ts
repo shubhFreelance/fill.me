@@ -6,6 +6,7 @@ import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
 import { protect, AuthenticatedRequest } from '../middleware/auth';
 import { validateForm, withValidation } from '../middleware/validation';
+import { apiRateLimit, uploadRateLimit } from '../middleware/rateLimiting';
 import { IForm, IFormField } from '../types';
 
 const router = express.Router();
@@ -53,7 +54,7 @@ interface FormsQuery {
  * @desc    Get all forms for authenticated user
  * @access  Private
  */
-router.get('/', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/', protect, apiRateLimit, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { page = '1', limit = '10', search, sortBy = 'updatedAt', sortOrder = 'desc' }: FormsQuery = req.query;
     
@@ -135,7 +136,7 @@ router.get('/', protect, async (req: AuthenticatedRequest, res: Response): Promi
  * @desc    Get single form by ID
  * @access  Private
  */
-router.get('/:id', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/:id', protect, apiRateLimit, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const form = await Form.findOne({
       _id: req.params.id,
@@ -178,7 +179,7 @@ interface CreateFormBody {
  * @desc    Create new form
  * @access  Private
  */
-router.post('/', protect, withValidation(validateForm), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/', protect, apiRateLimit, withValidation(validateForm), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { title, description, fields, customization, isPublic = true }: CreateFormBody = req.body;
 

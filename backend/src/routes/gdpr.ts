@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { protect, AuthenticatedRequest } from '../middleware/auth';
 import { withValidation } from '../middleware/validation';
 import { body, query, param } from 'express-validator';
+import { gdprRateLimit } from '../middleware/rateLimiting';
 import GDPRComplianceService from '../services/GDPRComplianceService';
 import Form from '../models/Form';
 import crypto from 'crypto';
@@ -186,7 +187,7 @@ router.post('/consent/revoke', async (req: express.Request, res: Response): Prom
  * @desc    Handle data subject access request (Right of Access)
  * @access  Public
  */
-router.post('/request/access', withValidation(validateAccessRequest), async (req: express.Request, res: Response): Promise<void> => {
+router.post('/request/access', gdprRateLimit, withValidation(validateAccessRequest), async (req: express.Request, res: Response): Promise<void> => {
   try {
     const { email, userId, verificationMethod } = req.body;
 
@@ -233,7 +234,7 @@ router.post('/request/access', withValidation(validateAccessRequest), async (req
  * @desc    Handle data erasure request (Right to be Forgotten)
  * @access  Public
  */
-router.post('/request/erasure', withValidation(validateErasureRequest), async (req: express.Request, res: Response): Promise<void> => {
+router.post('/request/erasure', gdprRateLimit, withValidation(validateErasureRequest), async (req: express.Request, res: Response): Promise<void> => {
   try {
     const { email, userId, erasureScope, verificationMethod } = req.body;
 
@@ -280,7 +281,7 @@ router.post('/request/erasure', withValidation(validateErasureRequest), async (r
  * @desc    Handle data portability request (Right to Data Portability)
  * @access  Public
  */
-router.post('/request/portability', withValidation(validatePortabilityRequest), async (req: express.Request, res: Response): Promise<void> => {
+router.post('/request/portability', gdprRateLimit, withValidation(validatePortabilityRequest), async (req: express.Request, res: Response): Promise<void> => {
   try {
     const { email, userId, exportFormat = 'json', verificationMethod } = req.body;
 

@@ -1,30 +1,20 @@
 import express, { Response } from 'express';
-import rateLimit from 'express-rate-limit';
 import User from '../models/User';
 import { protect, sendTokenResponse, AuthenticatedRequest } from '../middleware/auth';
 import { validateSignup, validateLogin, withValidation } from '../middleware/validation';
+import { authRateLimit, passwordResetRateLimit } from '../middleware/rateLimiting';
 import { IUser } from '../types';
 
 const router = express.Router();
 
-// Rate limiting for auth routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs for auth routes
-  message: {
-    success: false,
-    message: 'Too many authentication attempts, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+
 
 /**
  * @route   POST /api/auth/signup
  * @desc    Register a new user
  * @access  Public
  */
-router.post('/signup', authLimiter, validateSignup, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/signup', authRateLimit, validateSignup, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { email, password, firstName, lastName }: {
       email: string;
@@ -69,7 +59,7 @@ router.post('/signup', authLimiter, validateSignup, async (req: AuthenticatedReq
  * @desc    Login user
  * @access  Public
  */
-router.post('/login', authLimiter, validateLogin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.post('/login', authRateLimit, validateLogin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { email, password }: { email: string; password: string } = req.body;
 

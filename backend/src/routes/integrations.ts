@@ -2,6 +2,7 @@ import express, { Response } from 'express';
 import { protect, AuthenticatedRequest } from '../middleware/auth';
 import { withValidation } from '../middleware/validation';
 import { body } from 'express-validator';
+import { apiRateLimit, webhookRateLimit } from '../middleware/rateLimiting';
 import Integration from '../models/Integration';
 import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
@@ -110,7 +111,7 @@ interface IntegrationQuery {
  * @desc    Get user's integrations
  * @access  Private
  */
-router.get('/', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+router.get('/', protect, apiRateLimit, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const {
       page = '1',
