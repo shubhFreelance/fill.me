@@ -1,10 +1,25 @@
-const mongoose = require('mongoose');
-const mongoosePaginate = require('mongoose-paginate-v2');
+import mongoose, { Schema, Model } from 'mongoose';
+import mongoosePaginate from 'mongoose-paginate-v2';
+import {
+  IWorkspace,
+  IWorkspaceMember,
+  IWorkspaceBilling,
+  IWorkspaceSettings,
+  IWorkspaceAnalytics,
+  IWorkspacePermissions,
+  IWorkspaceLimits,
+  IBrandingSettings,
+  ISecuritySettings,
+  IWorkspaceNotifications,
+  IDataRetentionSettings,
+  ISlackIntegration,
+  IWebhook
+} from '../types';
 
 // Workspace member schema
-const workspaceMemberSchema = new mongoose.Schema({
+const workspaceMemberSchema = new Schema<IWorkspaceMember>({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -50,7 +65,7 @@ const workspaceMemberSchema = new mongoose.Schema({
     }
   },
   invitedBy: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User'
   },
   invitedAt: {
@@ -72,7 +87,7 @@ const workspaceMemberSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Workspace billing schema
-const workspaceBillingSchema = new mongoose.Schema({
+const workspaceBillingSchema = new Schema<IWorkspaceBilling>({
   plan: {
     type: String,
     enum: ['free', 'starter', 'professional', 'enterprise'],
@@ -118,7 +133,7 @@ const workspaceBillingSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Workspace settings schema
-const workspaceSettingsSchema = new mongoose.Schema({
+const workspaceSettingsSchema = new Schema<IWorkspaceSettings>({
   branding: {
     logo: String,
     primaryColor: {
@@ -183,7 +198,7 @@ const workspaceSettingsSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Workspace analytics schema
-const workspaceAnalyticsSchema = new mongoose.Schema({
+const workspaceAnalyticsSchema = new Schema<IWorkspaceAnalytics>({
   totalForms: {
     type: Number,
     default: 0
@@ -207,7 +222,7 @@ const workspaceAnalyticsSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Main workspace schema
-const workspaceSchema = new mongoose.Schema({
+const workspaceSchema = new Schema<IWorkspace>({
   name: {
     type: String,
     required: [true, 'Workspace name is required'],
@@ -229,7 +244,7 @@ const workspaceSchema = new mongoose.Schema({
   },
   // Owner and members
   ownerId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -273,7 +288,7 @@ const workspaceSchema = new mongoose.Schema({
 });
 
 // Virtual for total members count
-workspaceSchema.virtual('memberCount').get(function() {
+workspaceSchema.virtual('memberCount').get(function(this: IWorkspace): number {
   return this.members.filter(member => member.status === 'active').length + 1; // +1 for owner
 });
 
@@ -287,7 +302,7 @@ workspaceSchema.virtual('formsCount', {
 });
 
 // Virtual for billing status
-workspaceSchema.virtual('billingStatus').get(function() {
+workspaceSchema.virtual('billingStatus').get(function(this: IWorkspace): string {
   if (!this.billing.isActive) return 'inactive';
   if (this.billing.trialEndsAt && this.billing.trialEndsAt > new Date()) return 'trial';
   if (this.billing.canceledAt) return 'canceled';
@@ -295,7 +310,7 @@ workspaceSchema.virtual('billingStatus').get(function() {
 });
 
 // Virtual for usage limits
-workspaceSchema.virtual('usageLimits').get(function() {
+workspaceSchema.virtual('usageLimits').get(function(this: IWorkspace) {
   const limits = this.billing.limits;
   const analytics = this.analytics;
   
@@ -354,7 +369,7 @@ workspaceSchema.pre('save', async function(next) {
 });
 
 // Static method to find user workspaces
-workspaceSchema.statics.findUserWorkspaces = function(userId) {
+workspaceSchema.statics.findUserWorkspaces = function(userId: string) {
   return this.find({
     $and: [
       { isActive: true },
@@ -369,7 +384,7 @@ workspaceSchema.statics.findUserWorkspaces = function(userId) {
 };
 
 // Static method to check user access
-workspaceSchema.statics.checkUserAccess = async function(workspaceId, userId) {
+workspaceSchema.statics.checkUserAccess = async function(workspaceId: string, userId: string) {
   const workspace = await this.findById(workspaceId);
   if (!workspace) return null;
   
@@ -392,7 +407,7 @@ workspaceSchema.statics.checkUserAccess = async function(workspaceId, userId) {
   
   // Check if user is member
   const member = workspace.members.find(
-    m => m.userId.toString() === userId.toString() && m.status === 'active'
+    (m: IWorkspaceMember) => m.userId.toString() === userId.toString() && m.status === 'active'
   );
   
   if (member) {
@@ -406,9 +421,9 @@ workspaceSchema.statics.checkUserAccess = async function(workspaceId, userId) {
 };
 
 // Instance method to add member
-workspaceSchema.methods.addMember = function(userId, role = 'viewer', invitedBy) {
+workspaceSchema.methods.addMember = function(userId: string, role: string = 'viewer', invitedBy?: string): Promise<IWorkspace> {
   // Check if user is already a member
-  const existingMember = this.members.find(m => m.userId.toString() === userId.toString());
+  const existingMember = this.members.find((m: IWorkspaceMember) => m.userId.toString() === userId.toString());
   if (existingMember) {
     throw new Error('User is already a member of this workspace');
   }
@@ -417,37 +432,39 @@ workspaceSchema.methods.addMember = function(userId, role = 'viewer', invitedBy)
   const permissions = this.getDefaultPermissions(role);
   
   this.members.push({
-    userId,
-    role,
+    userId: new mongoose.Types.ObjectId(userId),
+    role: role as any,
     permissions,
-    invitedBy,
-    status: 'pending'
-  });
+    invitedBy: invitedBy ? new mongoose.Types.ObjectId(invitedBy) : undefined,
+    status: 'pending',
+    invitedAt: new Date(),
+    lastActivity: new Date()
+  } as IWorkspaceMember);
   
   return this.save();
 };
 
 // Instance method to update member role
-workspaceSchema.methods.updateMemberRole = function(userId, newRole) {
-  const member = this.members.find(m => m.userId.toString() === userId.toString());
+workspaceSchema.methods.updateMemberRole = function(userId: string, newRole: string): Promise<IWorkspace> {
+  const member = this.members.find((m: IWorkspaceMember) => m.userId.toString() === userId.toString());
   if (!member) {
     throw new Error('User is not a member of this workspace');
   }
   
-  member.role = newRole;
+  member.role = newRole as any;
   member.permissions = this.getDefaultPermissions(newRole);
   
   return this.save();
 };
 
 // Instance method to remove member
-workspaceSchema.methods.removeMember = function(userId) {
-  this.members = this.members.filter(m => m.userId.toString() !== userId.toString());
+workspaceSchema.methods.removeMember = function(userId: string): Promise<IWorkspace> {
+  this.members = this.members.filter((m: IWorkspaceMember) => m.userId.toString() !== userId.toString());
   return this.save();
 };
 
 // Instance method to get default permissions for role
-workspaceSchema.methods.getDefaultPermissions = function(role) {
+workspaceSchema.methods.getDefaultPermissions = function(role: string): IWorkspacePermissions {
   const rolePermissions = {
     viewer: {
       createForms: false,
@@ -479,19 +496,19 @@ workspaceSchema.methods.getDefaultPermissions = function(role) {
       inviteMembers: true,
       manageBilling: false
     }
-  };
+  } as const;
   
-  return rolePermissions[role] || rolePermissions.viewer;
+  return rolePermissions[role as keyof typeof rolePermissions] || rolePermissions.viewer;
 };
 
 // Instance method to update analytics
-workspaceSchema.methods.updateAnalytics = async function() {
+workspaceSchema.methods.updateAnalytics = async function(): Promise<IWorkspace> {
   const Form = mongoose.model('Form');
   const FormResponse = mongoose.model('FormResponse');
   
   // Get all forms in this workspace
   const forms = await Form.find({ workspaceId: this._id, isActive: true });
-  const formIds = forms.map(f => f._id);
+  const formIds = forms.map((f: any) => f._id);
   
   // Calculate analytics
   const totalResponses = await FormResponse.countDocuments({
@@ -504,7 +521,7 @@ workspaceSchema.methods.updateAnalytics = async function() {
   this.analytics = {
     totalForms: forms.length,
     totalResponses,
-    activeMembers: this.members.filter(m => m.status === 'active').length + 1,
+    activeMembers: this.members.filter((m: IWorkspaceMember) => m.status === 'active').length + 1,
     storageUsed,
     lastUpdated: new Date()
   };
@@ -515,4 +532,12 @@ workspaceSchema.methods.updateAnalytics = async function() {
 // Add pagination plugin
 workspaceSchema.plugin(mongoosePaginate);
 
-module.exports = mongoose.model('Workspace', workspaceSchema);
+// Interface for the Workspace model
+interface IWorkspaceModel extends Model<IWorkspace> {
+  findUserWorkspaces(userId: string): Promise<IWorkspace[]>;
+  checkUserAccess(workspaceId: string, userId: string): Promise<any>;
+}
+
+const Workspace = mongoose.model<IWorkspace, IWorkspaceModel>('Workspace', workspaceSchema);
+
+export default Workspace;

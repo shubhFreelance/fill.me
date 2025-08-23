@@ -1,11 +1,12 @@
-const express = require('express');
-const Form = require('../models/Form');
-const FormResponse = require('../models/FormResponse');
-const { protect } = require('../middleware/auth');
-const { validateForm } = require('../middleware/validation');
-const multer = require('multer');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+import express, { Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import Form from '../models/Form';
+import FormResponse from '../models/FormResponse';
+import { protect, AuthenticatedRequest } from '../middleware/auth';
+import { validateForm, withValidation } from '../middleware/validation';
+import { IForm, IFormField } from '../types';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024, // 5MB
+    fileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880'), // 5MB
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = /jpeg|jpg|png|gif/;
@@ -38,17 +39,26 @@ const upload = multer({
   }
 });
 
+// Query interface for forms listing
+interface FormsQuery {
+  page?: string;
+  limit?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
 /**
  * @route   GET /api/forms
  * @desc    Get all forms for authenticated user
  * @access  Private
  */
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { page = 1, limit = 10, search, sortBy = 'updatedAt', sortOrder = 'desc' } = req.query;
+    const { page = '1', limit = '10', search, sortBy = 'updatedAt', sortOrder = 'desc' }: FormsQuery = req.query;
     
-    const query = { 
-      userId: req.user._id, 
+    const query: any = { 
+      userId: req.user!._id, 
       isActive: true 
     };
 
@@ -72,7 +82,7 @@ router.get('/', protect, async (req, res) => {
       ]
     };
 
-    const forms = await Form.paginate(query, options);
+    const forms = await (Form as any).paginate(query, options);
 
     // Sync analytics for forms that might have outdated submission counts
     const updatedForms = [];
@@ -111,7 +121,7 @@ router.get('/', protect, async (req, res) => {
         limit: forms.limit
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get forms error:', error);
     res.status(500).json({
       success: false,
@@ -125,26 +135,27 @@ router.get('/', protect, async (req, res) => {
  * @desc    Get single form by ID
  * @access  Private
  */
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     }).populate('responseCount');
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     res.status(200).json({
       success: true,
       data: form
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get form error:', error);
     res.status(500).json({
       success: false,
@@ -153,14 +164,23 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
+// Form creation interface
+interface CreateFormBody {
+  title: string;
+  description?: string;
+  fields: IFormField[];
+  customization?: any;
+  isPublic?: boolean;
+}
+
 /**
  * @route   POST /api/forms
  * @desc    Create new form
  * @access  Private
  */
-router.post('/', protect, validateForm, async (req, res) => {
+router.post('/', protect, withValidation(validateForm), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, fields, customization, isPublic = true } = req.body;
+    const { title, description, fields, customization, isPublic = true }: CreateFormBody = req.body;
 
     // Add user ID to form data
     const formData = {
@@ -173,7 +193,7 @@ router.post('/', protect, validateForm, async (req, res) => {
       })),
       customization: customization || {},
       isPublic,
-      userId: req.user._id
+      userId: req.user!._id
     };
 
     const form = await Form.create(formData);
@@ -183,7 +203,7 @@ router.post('/', protect, validateForm, async (req, res) => {
       message: 'Form created successfully',
       data: form
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create form error:', error);
     res.status(500).json({
       success: false,
@@ -197,21 +217,22 @@ router.post('/', protect, validateForm, async (req, res) => {
  * @desc    Update form
  * @access  Private
  */
-router.put('/:id', protect, validateForm, async (req, res) => {
+router.put('/:id', protect, withValidation(validateForm), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, fields, customization, isPublic } = req.body;
+    const { title, description, fields, customization, isPublic }: CreateFormBody = req.body;
 
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Update form fields
@@ -238,7 +259,7 @@ router.put('/:id', protect, validateForm, async (req, res) => {
       message: 'Form updated successfully',
       data: updatedForm
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update form error:', error);
     res.status(500).json({
       success: false,
@@ -252,19 +273,20 @@ router.put('/:id', protect, validateForm, async (req, res) => {
  * @desc    Delete form (soft delete)
  * @access  Private
  */
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Soft delete
@@ -274,7 +296,7 @@ router.delete('/:id', protect, async (req, res) => {
       success: true,
       message: 'Form deleted successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete form error:', error);
     res.status(500).json({
       success: false,
@@ -288,19 +310,20 @@ router.delete('/:id', protect, async (req, res) => {
  * @desc    Duplicate a form
  * @access  Private
  */
-router.post('/:id/duplicate', protect, async (req, res) => {
+router.post('/:id/duplicate', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const originalForm = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!originalForm) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Create duplicate with new publicUrl
@@ -308,12 +331,12 @@ router.post('/:id/duplicate', protect, async (req, res) => {
       title: `${originalForm.title} (Copy)`,
       description: originalForm.description,
       fields: originalForm.fields.map(field => ({
-        ...field.toObject(),
+        ...(field as any).toObject(),
         id: uuidv4()
       })),
       customization: originalForm.customization,
       isPublic: originalForm.isPublic,
-      userId: req.user._id
+      userId: req.user!._id
     };
 
     const duplicateForm = await Form.create(duplicateData);
@@ -323,7 +346,7 @@ router.post('/:id/duplicate', protect, async (req, res) => {
       message: 'Form duplicated successfully',
       data: duplicateForm
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Duplicate form error:', error);
     res.status(500).json({
       success: false,
@@ -337,26 +360,28 @@ router.post('/:id/duplicate', protect, async (req, res) => {
  * @desc    Upload logo for form
  * @access  Private
  */
-router.post('/:id/upload-logo', protect, upload.single('logo'), async (req, res) => {
+router.post('/:id/upload-logo', protect, upload.single('logo'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.file) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'No file uploaded'
       });
+      return;
     }
 
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Update form with logo URL
@@ -369,7 +394,7 @@ router.post('/:id/upload-logo', protect, upload.single('logo'), async (req, res)
       message: 'Logo uploaded successfully',
       logoUrl: logoUrl
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload logo error:', error);
     res.status(500).json({
       success: false,
@@ -383,26 +408,27 @@ router.post('/:id/upload-logo', protect, upload.single('logo'), async (req, res)
  * @desc    Get form analytics
  * @access  Private
  */
-router.get('/:id/analytics', protect, async (req, res) => {
+router.get('/:id/analytics', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Get response analytics
-    const responseAnalytics = await FormResponse.getAnalytics(form._id);
+    const responseAnalytics = await (FormResponse as any).getAnalytics(form._id);
     
     // Get recent responses
-    const recentResponses = await FormResponse.getFormResponses(form._id, {
+    const recentResponses = await (FormResponse as any).getFormResponses(form._id, {
       limit: 10,
       sort: { submittedAt: -1 }
     });
@@ -410,16 +436,16 @@ router.get('/:id/analytics', protect, async (req, res) => {
     const analytics = {
       totalViews: form.analytics.views,
       totalSubmissions: form.analytics.submissions,
-      conversionRate: form.conversionRate,
+      conversionRate: (form as any).conversionRate,
       responseAnalytics,
-      recentResponses: recentResponses.map(response => response.getFormattedData())
+      recentResponses: recentResponses.map((response: any) => response.getFormattedData())
     };
 
     res.status(200).json({
       success: true,
       data: analytics
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get analytics error:', error);
     res.status(500).json({
       success: false,
@@ -433,23 +459,24 @@ router.get('/:id/analytics', protect, async (req, res) => {
  * @desc    Sync form analytics with actual response count
  * @access  Private
  */
-router.post('/:id/sync-analytics', protect, async (req, res) => {
+router.post('/:id/sync-analytics', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const form = await Form.findOne({
       _id: req.params.id,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Sync analytics
-    const updatedForm = await Form.syncFormAnalytics(form._id);
+    const updatedForm = await (Form as any).syncFormAnalytics(form._id);
 
     res.status(200).json({
       success: true,
@@ -459,7 +486,7 @@ router.post('/:id/sync-analytics', protect, async (req, res) => {
         totalViews: updatedForm.analytics.views
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sync analytics error:', error);
     res.status(500).json({
       success: false,
@@ -473,23 +500,24 @@ router.post('/:id/sync-analytics', protect, async (req, res) => {
  * @desc    Sync analytics for all forms
  * @access  Private
  */
-router.post('/sync-all-analytics', protect, async (req, res) => {
+router.post('/sync-all-analytics', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // Only allow this for development or if user is admin
     if (process.env.NODE_ENV !== 'development') {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         message: 'This operation is only allowed in development mode'
       });
+      return;
     }
 
-    await Form.recalculateAnalytics();
+    await (Form as any).recalculateAnalytics();
 
     res.status(200).json({
       success: true,
       message: 'All form analytics synced successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sync all analytics error:', error);
     res.status(500).json({
       success: false,
@@ -498,4 +526,4 @@ router.post('/sync-all-analytics', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

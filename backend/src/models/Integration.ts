@@ -1,8 +1,25 @@
-const mongoose = require('mongoose');
-const crypto = require('crypto');
+import mongoose, { Schema, Model } from 'mongoose';
+import crypto from 'crypto';
+import {
+  IIntegration,
+  IIntegrationCredentials,
+  IIntegrationSettings,
+  IIntegrationAnalytics,
+  IIntegrationRateLimit,
+  IIntegrationTrigger,
+  ITriggerConditions,
+  IFieldCondition,
+  IntegrationType,
+  TriggerEvent,
+  IWebhookSettings,
+  IGoogleSheetsSettings,
+  ISlackSettings,
+  IEmailSettings,
+  IStripeSettings
+} from '../types';
 
 // Integration credentials schema
-const credentialsSchema = new mongoose.Schema({
+const credentialsSchema = new Schema<IIntegrationCredentials>({
   // For OAuth2 integrations
   accessToken: String,
   refreshToken: String,
@@ -47,7 +64,7 @@ const credentialsSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Integration settings schema
-const settingsSchema = new mongoose.Schema({
+const settingsSchema = new Schema<IIntegrationSettings>({
   // Webhook settings
   webhook: {
     retryAttempts: {
@@ -138,7 +155,7 @@ const settingsSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Integration analytics schema
-const analyticsSchema = new mongoose.Schema({
+const analyticsSchema = new Schema<IIntegrationAnalytics>({
   totalExecutions: {
     type: Number,
     default: 0
@@ -165,8 +182,45 @@ const analyticsSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
+// Trigger conditions schema
+const triggerConditionsSchema = new Schema<ITriggerConditions>({
+  fieldConditions: [{
+    fieldId: String,
+    operator: {
+      type: String,
+      enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
+    },
+    value: Schema.Types.Mixed
+  }],
+  minResponseTime: Number, // milliseconds
+  maxResponseTime: Number,
+  requiredFields: [String]
+}, { _id: false });
+
+// Integration trigger schema
+const triggerSchema = new Schema<IIntegrationTrigger>({
+  event: {
+    type: String,
+    enum: [
+      'form_submitted',
+      'form_viewed',
+      'form_started',
+      'form_completed',
+      'form_abandoned',
+      'response_updated',
+      'response_deleted'
+    ] as TriggerEvent[],
+    required: true
+  },
+  conditions: triggerConditionsSchema,
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, { _id: false });
+
 // Main integration schema
-const integrationSchema = new mongoose.Schema({
+const integrationSchema = new Schema<IIntegration>({
   name: {
     type: String,
     required: [true, 'Integration name is required'],
@@ -194,22 +248,22 @@ const integrationSchema = new mongoose.Schema({
       'discord',
       'teams',
       'custom'
-    ]
+    ] as IntegrationType[]
   },
   // Associated entities
   formId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'Form',
     index: true
   },
   workspaceId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'Workspace',
     required: true,
     index: true
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -223,40 +277,7 @@ const integrationSchema = new mongoose.Schema({
   },
   
   // Event triggers
-  triggers: [{
-    event: {
-      type: String,
-      enum: [
-        'form_submitted',
-        'form_viewed',
-        'form_started',
-        'form_completed',
-        'form_abandoned',
-        'response_updated',
-        'response_deleted'
-      ],
-      required: true
-    },
-    conditions: {
-      // Field-based conditions
-      fieldConditions: [{
-        fieldId: String,
-        operator: {
-          type: String,
-          enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
-        },
-        value: mongoose.Schema.Types.Mixed
-      }],
-      // General conditions
-      minResponseTime: Number, // milliseconds
-      maxResponseTime: Number,
-      requiredFields: [String]
-    },
-    isActive: {
-      type: Boolean,
-      default: true
-    }
-  }],
+  triggers: [triggerSchema],
   
   // Status and control
   isActive: {
@@ -309,13 +330,13 @@ const integrationSchema = new mongoose.Schema({
 });
 
 // Virtual for success rate
-integrationSchema.virtual('successRate').get(function() {
-  if (this.analytics.totalExecutions === 0) return 0;
+integrationSchema.virtual('successRate').get(function(this: IIntegration): string {
+  if (this.analytics.totalExecutions === 0) return '0.00';
   return ((this.analytics.successfulExecutions / this.analytics.totalExecutions) * 100).toFixed(2);
 });
 
 // Virtual for recent activity status
-integrationSchema.virtual('status').get(function() {
+integrationSchema.virtual('status').get(function(this: IIntegration): string {
   if (!this.isActive) return 'inactive';
   if (this.isPaused) return 'paused';
   
@@ -353,8 +374,8 @@ integrationSchema.pre('save', function(next) {
 });
 
 // Static method to find active integrations for form
-integrationSchema.statics.findActiveForForm = function(formId, eventType = null) {
-  const query = {
+integrationSchema.statics.findActiveForForm = function(formId: string, eventType?: TriggerEvent) {
+  const query: any = {
     formId,
     isActive: true,
     isPaused: false
@@ -369,8 +390,8 @@ integrationSchema.statics.findActiveForForm = function(formId, eventType = null)
 };
 
 // Static method to find workspace integrations
-integrationSchema.statics.findByWorkspace = function(workspaceId, options = {}) {
-  const query = { workspaceId };
+integrationSchema.statics.findByWorkspace = function(workspaceId: string, options: any = {}) {
+  const query: any = { workspaceId };
   if (options.type) query.type = options.type;
   if (options.isActive !== undefined) query.isActive = options.isActive;
   
@@ -378,12 +399,12 @@ integrationSchema.statics.findByWorkspace = function(workspaceId, options = {}) 
 };
 
 // Instance method to execute integration
-integrationSchema.methods.execute = async function(data, eventType) {
+integrationSchema.methods.execute = async function(data: any, eventType: TriggerEvent) {
   const startTime = Date.now();
   
   try {
     // Check if integration should execute for this event
-    const shouldExecute = this.triggers.some(trigger => 
+    const shouldExecute = this.triggers.some((trigger: IIntegrationTrigger) => 
       trigger.event === eventType && 
       trigger.isActive && 
       this.evaluateConditions(trigger.conditions, data)
@@ -427,7 +448,7 @@ integrationSchema.methods.execute = async function(data, eventType) {
     
     return { success: true, result };
     
-  } catch (error) {
+  } catch (error: any) {
     const responseTime = Date.now() - startTime;
     await this.updateAnalytics(false, responseTime, error.message);
     throw error;
@@ -435,10 +456,10 @@ integrationSchema.methods.execute = async function(data, eventType) {
 };
 
 // Instance method to evaluate conditions
-integrationSchema.methods.evaluateConditions = function(conditions, data) {
+integrationSchema.methods.evaluateConditions = function(conditions: ITriggerConditions, data: any): boolean {
   if (!conditions || !conditions.fieldConditions) return true;
   
-  return conditions.fieldConditions.every(condition => {
+  return conditions.fieldConditions.every((condition: IFieldCondition) => {
     const fieldValue = data.responses[condition.fieldId];
     
     switch (condition.operator) {
@@ -465,14 +486,14 @@ integrationSchema.methods.evaluateConditions = function(conditions, data) {
 };
 
 // Instance method to check rate limits
-integrationSchema.methods.isRateLimited = async function() {
+integrationSchema.methods.isRateLimited = async function(): Promise<boolean> {
   // Implement rate limiting logic
   // This would check recent executions against the rate limits
   return false; // Placeholder
 };
 
 // Instance method to update analytics
-integrationSchema.methods.updateAnalytics = async function(success, responseTime, error = null) {
+integrationSchema.methods.updateAnalytics = async function(success: boolean, responseTime: number, error?: string): Promise<IIntegration> {
   this.analytics.totalExecutions += 1;
   this.analytics.lastExecutionAt = new Date();
   
@@ -497,29 +518,37 @@ integrationSchema.methods.updateAnalytics = async function(success, responseTime
 };
 
 // Placeholder methods for integration execution (to be implemented)
-integrationSchema.methods.executeWebhook = async function(data) {
+integrationSchema.methods.executeWebhook = async function(data: any) {
   // Implement webhook execution
   return { message: 'Webhook executed successfully' };
 };
 
-integrationSchema.methods.executeGoogleSheets = async function(data) {
+integrationSchema.methods.executeGoogleSheets = async function(data: any) {
   // Implement Google Sheets integration
   return { message: 'Data added to Google Sheets' };
 };
 
-integrationSchema.methods.executeSlack = async function(data) {
+integrationSchema.methods.executeSlack = async function(data: any) {
   // Implement Slack integration
   return { message: 'Slack notification sent' };
 };
 
-integrationSchema.methods.executeStripe = async function(data) {
+integrationSchema.methods.executeStripe = async function(data: any) {
   // Implement Stripe payment processing
   return { message: 'Payment processed' };
 };
 
-integrationSchema.methods.executeEmail = async function(data) {
+integrationSchema.methods.executeEmail = async function(data: any) {
   // Implement email notification
   return { message: 'Email sent successfully' };
 };
 
-module.exports = mongoose.model('Integration', integrationSchema);
+// Interface for the Integration model
+interface IIntegrationModel extends Model<IIntegration> {
+  findActiveForForm(formId: string, eventType?: TriggerEvent): Promise<IIntegration[]>;
+  findByWorkspace(workspaceId: string, options?: any): Promise<IIntegration[]>;
+}
+
+const Integration = mongoose.model<IIntegration, IIntegrationModel>('Integration', integrationSchema);
+
+export default Integration;

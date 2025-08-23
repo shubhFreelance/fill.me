@@ -1,11 +1,10 @@
-const express = require('express');
-const Form = require('../models/Form');
-const FormResponse = require('../models/FormResponse');
-const { validateFormResponse } = require('../middleware/validation');
-const rateLimit = require('express-rate-limit');
-const multer = require('multer');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+import express, { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import multer from 'multer';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import Form from '../models/Form';
+import FormResponse from '../models/FormResponse';
 
 const router = express.Router();
 
@@ -23,7 +22,7 @@ const fileStorage = multer.diskStorage({
 const fileUpload = multer({
   storage: fileStorage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024, // 5MB
+    fileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880'), // 5MB
   },
   fileFilter: function (req, file, cb) {
     // Allow all file types for form uploads, but still have some restrictions
@@ -50,31 +49,47 @@ const submissionLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// File info interface
+interface FileInfo {
+  originalName: string;
+  filename: string;
+  mimetype: string;
+  size: number;
+  url: string;
+}
+
+// Submit form interface
+interface SubmitFormBody {
+  responses: Record<string, any>;
+  metadata?: Record<string, any>;
+}
+
 /**
  * @route   GET /api/public/forms/:publicUrl
  * @desc    Get public form by public URL
  * @access  Public
  */
-router.get('/forms/:publicUrl', async (req, res) => {
+router.get('/forms/:publicUrl', async (req: Request, res: Response): Promise<void> => {
   try {
-    const form = await Form.findByPublicUrl(req.params.publicUrl);
+    const form = await (Form as any).findByPublicUrl(req.params.publicUrl);
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found or not publicly accessible'
       });
+      return;
     }
 
     // Increment view count
-    await form.incrementViews();
+    await (form as any).incrementViews();
 
     // Return only public data
     res.status(200).json({
       success: true,
-      data: form.getPublicData()
+      data: (form as any).getPublicData()
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get public form error:', error);
     res.status(500).json({
       success: false,
@@ -88,19 +103,20 @@ router.get('/forms/:publicUrl', async (req, res) => {
  * @desc    Submit response to public form
  * @access  Public
  */
-router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), async (req, res) => {
+router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), async (req: Request, res: Response): Promise<void> => {
   try {
-    let { responses, metadata } = req.body;
+    let { responses, metadata }: SubmitFormBody = req.body;
 
     // Parse responses if it's a string (from FormData)
     if (typeof responses === 'string') {
       try {
         responses = JSON.parse(responses);
       } catch (error) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           message: 'Invalid responses format'
         });
+        return;
       }
     }
 
@@ -114,20 +130,21 @@ router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), asy
     }
 
     // Find the form
-    const form = await Form.findByPublicUrl(req.params.publicUrl);
+    const form = await (Form as any).findByPublicUrl(req.params.publicUrl);
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found or not publicly accessible'
       });
+      return;
     }
 
     // Handle file uploads
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      req.files.forEach((file: Express.Multer.File) => {
         const fieldName = file.fieldname;
-        const fileInfo = {
+        const fileInfo: FileInfo = {
           originalName: file.originalname,
           filename: file.filename,
           mimetype: file.mimetype,
@@ -142,7 +159,7 @@ router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), asy
     const formResponse = new FormResponse({
       formId: form._id,
       responses,
-      ipAddress: req.ip || req.connection.remoteAddress,
+      ipAddress: req.ip || (req.connection as any)?.remoteAddress,
       userAgent: req.get('User-Agent'),
       metadata: {
         referrer: req.get('Referer'),
@@ -151,14 +168,15 @@ router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), asy
     });
 
     // Validate response against form fields
-    const isValid = await formResponse.validateAgainstForm();
+    const isValid = await (formResponse as any).validateAgainstForm();
 
     if (!isValid) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Form validation failed',
-        errors: formResponse.validationErrors
+        errors: (formResponse as any).validationErrors
       });
+      return;
     }
 
     // Save the response
@@ -169,10 +187,10 @@ router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), asy
       message: 'Response submitted successfully',
       data: {
         id: formResponse._id,
-        submittedAt: formResponse.submittedAt
+        submittedAt: (formResponse as any).submittedAt
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Submit form response error:', error);
     res.status(500).json({
       success: false,
@@ -186,23 +204,24 @@ router.post('/forms/:publicUrl/submit', submissionLimiter, fileUpload.any(), asy
  * @desc    Get form preview without incrementing views
  * @access  Public
  */
-router.get('/forms/:publicUrl/preview', async (req, res) => {
+router.get('/forms/:publicUrl/preview', async (req: Request, res: Response): Promise<void> => {
   try {
-    const form = await Form.findByPublicUrl(req.params.publicUrl);
+    const form = await (Form as any).findByPublicUrl(req.params.publicUrl);
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found or not publicly accessible'
       });
+      return;
     }
 
     // Return public data without incrementing views
     res.status(200).json({
       success: true,
-      data: form.getPublicData()
+      data: (form as any).getPublicData()
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get form preview error:', error);
     res.status(500).json({
       success: false,
@@ -216,29 +235,30 @@ router.get('/forms/:publicUrl/preview', async (req, res) => {
  * @desc    Get form embed code and data
  * @access  Public
  */
-router.get('/forms/:publicUrl/embed', async (req, res) => {
+router.get('/forms/:publicUrl/embed', async (req: Request, res: Response): Promise<void> => {
   try {
-    const form = await Form.findByPublicUrl(req.params.publicUrl);
+    const form = await (Form as any).findByPublicUrl(req.params.publicUrl);
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found or not publicly accessible'
       });
+      return;
     }
 
     // Increment view count for embed
-    await form.incrementViews();
+    await (form as any).incrementViews();
 
     res.status(200).json({
       success: true,
       data: {
-        form: form.getPublicData(),
+        form: (form as any).getPublicData(),
         embedCode: form.embedCode,
         embedUrl: `${process.env.FRONTEND_URL}/embed/${form.publicUrl}`
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get form embed error:', error);
     res.status(500).json({
       success: false,
@@ -252,18 +272,19 @@ router.get('/forms/:publicUrl/embed', async (req, res) => {
  * @desc    Validate form data without submitting
  * @access  Public
  */
-router.post('/forms/:publicUrl/validate', async (req, res) => {
+router.post('/forms/:publicUrl/validate', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { responses } = req.body;
+    const { responses }: { responses: Record<string, any> } = req.body;
 
     // Find the form
-    const form = await Form.findByPublicUrl(req.params.publicUrl);
+    const form = await (Form as any).findByPublicUrl(req.params.publicUrl);
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found or not publicly accessible'
       });
+      return;
     }
 
     // Create temporary response for validation
@@ -273,16 +294,16 @@ router.post('/forms/:publicUrl/validate', async (req, res) => {
     });
 
     // Validate without saving
-    const isValid = await tempResponse.validateAgainstForm();
+    const isValid = await (tempResponse as any).validateAgainstForm();
 
     res.status(200).json({
       success: true,
       data: {
         isValid,
-        errors: tempResponse.validationErrors
+        errors: (tempResponse as any).validationErrors
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Validate form error:', error);
     res.status(500).json({
       success: false,
@@ -291,4 +312,4 @@ router.post('/forms/:publicUrl/validate', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

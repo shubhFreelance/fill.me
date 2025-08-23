@@ -1,37 +1,54 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const Form = require('../models/Form');
-const FormResponse = require('../models/FormResponse');
-const { protect } = require('../middleware/auth');
-const { Parser } = require('json2csv');
+import express, { Response } from 'express';
+import mongoose from 'mongoose';
+import { Parser } from 'json2csv';
+import Form from '../models/Form';
+import FormResponse from '../models/FormResponse';
+import { protect, AuthenticatedRequest } from '../middleware/auth';
+import { IForm, IFormField } from '../types';
 
 const router = express.Router();
+
+// Query interfaces
+interface ResponsesQuery {
+  page?: string;
+  limit?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+}
+
+interface ExportQuery {
+  startDate?: string;
+  endDate?: string;
+  format?: 'csv' | 'json';
+}
 
 /**
  * @route   GET /api/responses/forms/:formId
  * @desc    Get responses for a specific form
  * @access  Private
  */
-router.get('/forms/:formId', protect, async (req, res) => {
+router.get('/forms/:formId', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { page = 1, limit = 20, startDate, endDate, search } = req.query;
+    const { page = '1', limit = '20', startDate, endDate, search }: ResponsesQuery = req.query;
 
     // Verify form ownership
     const form = await Form.findOne({
       _id: req.params.formId,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Build query options
-    const options = {
+    const options: any = {
       limit: parseInt(limit),
       skip: (parseInt(page) - 1) * parseInt(limit),
       sort: { submittedAt: -1 }
@@ -46,14 +63,14 @@ router.get('/forms/:formId', protect, async (req, res) => {
     }
 
     // Get responses
-    const responses = await FormResponse.getFormResponses(form._id, options);
+    const responses = await (FormResponse as any).getFormResponses(form._id, options);
     const totalResponses = await FormResponse.countDocuments({ 
       formId: form._id, 
       isValid: true 
     });
 
     // Format responses
-    const formattedResponses = responses.map(response => response.getFormattedData());
+    const formattedResponses = responses.map((response: any) => response.getFormattedData());
 
     res.status(200).json({
       success: true,
@@ -65,7 +82,7 @@ router.get('/forms/:formId', protect, async (req, res) => {
         limit: parseInt(limit)
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get form responses error:', error);
     res.status(500).json({
       success: false,
@@ -79,42 +96,44 @@ router.get('/forms/:formId', protect, async (req, res) => {
  * @desc    Export form responses to CSV
  * @access  Private
  */
-router.get('/forms/:formId/export', protect, async (req, res) => {
+router.get('/forms/:formId/export', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { startDate, endDate, format = 'csv' } = req.query;
+    const { startDate, endDate, format = 'csv' }: ExportQuery = req.query;
 
     // Verify form ownership
     const form = await Form.findOne({
       _id: req.params.formId,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
-    }).lean();
+    }).lean() as IForm;
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Build query options
-    const options = {};
+    const options: any = {};
     if (startDate) options.startDate = startDate;
     if (endDate) options.endDate = endDate;
 
     // Get all responses
-    const responses = await FormResponse.getFormResponses(form._id, options);
+    const responses = await (FormResponse as any).getFormResponses(form._id, options);
 
     if (responses.length === 0) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'No responses found for the specified criteria'
       });
+      return;
     }
 
     // Prepare data for export
-    const exportData = responses.map(response => {
-      const flatData = {
+    const exportData = responses.map((response: any) => {
+      const flatData: Record<string, any> = {
         'Response ID': response._id,
         'Submitted At': response.submittedAt,
         'IP Address': response.ipAddress || 'N/A',
@@ -122,7 +141,7 @@ router.get('/forms/:formId/export', protect, async (req, res) => {
       };
 
       // Add form field responses
-      form.fields.forEach(field => {
+      form.fields.forEach((field: IFormField) => {
         const value = response.responses[field.id];
         let formattedValue = 'N/A';
 
@@ -148,7 +167,7 @@ router.get('/forms/:formId/export', protect, async (req, res) => {
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${form.title}-responses.json"`);
-      return res.status(200).json({
+      res.status(200).json({
         success: true,
         form: {
           id: form._id,
@@ -157,6 +176,7 @@ router.get('/forms/:formId/export', protect, async (req, res) => {
         },
         responses: exportData
       });
+      return;
     }
 
     // Default to CSV export
@@ -175,7 +195,7 @@ router.get('/forms/:formId/export', protect, async (req, res) => {
         message: 'Error generating CSV export'
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Export responses error:', error);
     res.status(500).json({
       success: false,
@@ -189,33 +209,34 @@ router.get('/forms/:formId/export', protect, async (req, res) => {
  * @desc    Get single response details
  * @access  Private
  */
-router.get('/:responseId', protect, async (req, res) => {
+router.get('/:responseId', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const response = await FormResponse.findById(req.params.responseId)
       .populate({
         path: 'formId',
-        match: { userId: req.user._id },
+        match: { userId: req.user!._id },
         select: 'title fields userId'
       });
 
     if (!response || !response.formId) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Response not found'
       });
+      return;
     }
 
     res.status(200).json({
       success: true,
       data: {
-        ...response.getFormattedData(),
+        ...(response as any).getFormattedData(),
         form: {
-          title: response.formId.title,
-          fields: response.formId.fields
+          title: (response.formId as any).title,
+          fields: (response.formId as any).fields
         }
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get response error:', error);
     res.status(500).json({
       success: false,
@@ -229,27 +250,28 @@ router.get('/:responseId', protect, async (req, res) => {
  * @desc    Delete a response
  * @access  Private
  */
-router.delete('/:responseId', protect, async (req, res) => {
+router.delete('/:responseId', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const response = await FormResponse.findById(req.params.responseId)
       .populate({
         path: 'formId',
-        match: { userId: req.user._id },
+        match: { userId: req.user!._id },
         select: 'userId'
       });
 
     if (!response || !response.formId) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Response not found'
       });
+      return;
     }
 
     await FormResponse.findByIdAndDelete(req.params.responseId);
 
     // Decrement submissions count
     await Form.findByIdAndUpdate(
-      response.formId._id,
+      (response.formId as any)._id,
       { $inc: { 'analytics.submissions': -1 } }
     );
 
@@ -257,7 +279,7 @@ router.delete('/:responseId', protect, async (req, res) => {
       success: true,
       message: 'Response deleted successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete response error:', error);
     res.status(500).json({
       success: false,
@@ -271,24 +293,25 @@ router.delete('/:responseId', protect, async (req, res) => {
  * @desc    Get advanced analytics for form responses
  * @access  Private
  */
-router.get('/forms/:formId/analytics', protect, async (req, res) => {
+router.get('/forms/:formId/analytics', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // Verify form ownership
     const form = await Form.findOne({
       _id: req.params.formId,
-      userId: req.user._id,
+      userId: req.user!._id,
       isActive: true
     });
 
     if (!form) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         message: 'Form not found'
       });
+      return;
     }
 
     // Get basic analytics
-    const analytics = await FormResponse.getAnalytics(form._id);
+    const analytics = await (FormResponse as any).getAnalytics(form._id);
 
     // Get response trends (last 30 days)
     const thirtyDaysAgo = new Date();
@@ -317,7 +340,7 @@ router.get('/forms/:formId/analytics', protect, async (req, res) => {
     ]);
 
     // Get field completion rates
-    const fieldAnalytics = {};
+    const fieldAnalytics: Record<string, any> = {};
     if (form.fields && form.fields.length > 0) {
       const totalResponses = analytics.totalResponses || 0;
       
@@ -344,7 +367,7 @@ router.get('/forms/:formId/analytics', protect, async (req, res) => {
         overview: {
           totalViews: form.analytics.views,
           totalSubmissions: form.analytics.submissions,
-          conversionRate: form.conversionRate,
+          conversionRate: (form as any).conversionRate,
           ...analytics
         },
         trends: {
@@ -354,7 +377,7 @@ router.get('/forms/:formId/analytics', protect, async (req, res) => {
         fieldAnalytics
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get response analytics error:', error);
     res.status(500).json({
       success: false,
@@ -363,4 +386,4 @@ router.get('/forms/:formId/analytics', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

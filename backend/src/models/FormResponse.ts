@@ -1,17 +1,18 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema, Model } from 'mongoose';
+import { IFormResponse, IResponseMetadata, IValidationError } from '../types';
 
-const formResponseSchema = new mongoose.Schema({
+const formResponseSchema = new Schema<IFormResponse>({
   formId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'Form',
     required: true,
     index: true
   },
   responses: {
-    type: mongoose.Schema.Types.Mixed,
+    type: Schema.Types.Mixed,
     required: true,
     validate: {
-      validator: function(responses) {
+      validator: function(responses: any) {
         return typeof responses === 'object' && responses !== null;
       },
       message: 'Responses must be an object'
@@ -59,7 +60,7 @@ formResponseSchema.virtual('form', {
 });
 
 // Instance method to validate response against form fields
-formResponseSchema.methods.validateAgainstForm = async function() {
+formResponseSchema.methods.validateAgainstForm = async function(): Promise<IValidationError[]> {
   const Form = mongoose.model('Form');
   const form = await Form.findById(this.formId);
   
@@ -67,7 +68,7 @@ formResponseSchema.methods.validateAgainstForm = async function() {
     throw new Error('Form not found');
   }
 
-  const errors = [];
+  const errors: IValidationError[] = [];
   const responses = this.responses;
 
   // Check required fields
@@ -94,6 +95,27 @@ formResponseSchema.methods.validateAgainstForm = async function() {
           }
           break;
           
+        case 'phone':
+          const phoneRegex = /^[+]?[1-9]?[0-9]{7,15}$/;
+          if (!phoneRegex.test(value.replace(/\s|-|\(|\)/g, ''))) {
+            errors.push({
+              fieldId: field.id,
+              message: `${field.label} must be a valid phone number`
+            });
+          }
+          break;
+          
+        case 'url':
+          try {
+            new URL(value);
+          } catch {
+            errors.push({
+              fieldId: field.id,
+              message: `${field.label} must be a valid URL`
+            });
+          }
+          break;
+          
         case 'text':
         case 'textarea':
           if (field.validation) {
@@ -106,7 +128,7 @@ formResponseSchema.methods.validateAgainstForm = async function() {
             if (field.validation.maxLength && value.length > field.validation.maxLength) {
               errors.push({
                 fieldId: field.id,
-                message: `${field.label} cannot exceed ${field.validation.maxLength} characters`
+                message: `${field.label} cannot be more than ${field.validation.maxLength} characters`
               });
             }
             if (field.validation.pattern) {
@@ -121,33 +143,11 @@ formResponseSchema.methods.validateAgainstForm = async function() {
           }
           break;
           
-        case 'dropdown':
-        case 'radio':
-          if (field.options && !field.options.includes(value)) {
+        case 'number':
+          if (isNaN(Number(value))) {
             errors.push({
               fieldId: field.id,
-              message: `${field.label} contains an invalid option`
-            });
-          }
-          break;
-          
-        case 'checkbox':
-          if (field.options && Array.isArray(value)) {
-            const invalidOptions = value.filter(v => !field.options.includes(v));
-            if (invalidOptions.length > 0) {
-              errors.push({
-                fieldId: field.id,
-                message: `${field.label} contains invalid options: ${invalidOptions.join(', ')}`
-              });
-            }
-          }
-          break;
-          
-        case 'date':
-          if (isNaN(Date.parse(value))) {
-            errors.push({
-              fieldId: field.id,
-              message: `${field.label} must be a valid date`
+              message: `${field.label} must be a valid number`
             });
           }
           break;
@@ -158,71 +158,133 @@ formResponseSchema.methods.validateAgainstForm = async function() {
   this.validationErrors = errors;
   this.isValid = errors.length === 0;
   
-  return this.isValid;
+  return errors;
 };
 
-// Instance method to get formatted response data
-formResponseSchema.methods.getFormattedData = function() {
-  return {
-    id: this._id,
-    formId: this.formId,
-    responses: this.responses,
-    submittedAt: this.submittedAt,
-    isValid: this.isValid,
-    validationErrors: this.validationErrors
-  };
-};
-
-// Static method to get responses for a form
-formResponseSchema.statics.getFormResponses = function(formId, options = {}) {
-  const query = { formId, isValid: true };
-  
-  if (options.startDate) {
-    query.submittedAt = { $gte: new Date(options.startDate) };
-  }
-  
-  if (options.endDate) {
-    query.submittedAt = { 
-      ...query.submittedAt, 
-      $lte: new Date(options.endDate) 
-    };
-  }
-
-  return this.find(query)
-    .sort(options.sort || { submittedAt: -1 })
-    .limit(options.limit || 0)
-    .skip(options.skip || 0);
-};
-
-// Static method to get response analytics
-formResponseSchema.statics.getAnalytics = async function(formId) {
+// Static method to get analytics for a form
+formResponseSchema.statics.getAnalytics = async function(formId: string, dateRange?: { start: Date; end: Date }) {
   try {
+    const matchStage: any = { 
+      formId: new mongoose.Types.ObjectId(formId),
+      isValid: true 
+    };
+    
+    if (dateRange) {
+      matchStage.submittedAt = {
+        $gte: dateRange.start,
+        $lte: dateRange.end
+      };
+    }
+
     const pipeline = [
-      { $match: { formId: new mongoose.Types.ObjectId(formId), isValid: true } },
+      { $match: matchStage },
       {
         $group: {
           _id: null,
           totalResponses: { $sum: 1 },
           latestResponse: { $max: '$submittedAt' },
-          oldestResponse: { $min: '$submittedAt' }
+          oldestResponse: { $min: '$submittedAt' },
+          averageCompletionTime: { $avg: '$completionTime' }
         }
       }
     ];
 
     const result = await this.aggregate(pipeline);
-    return result[0] || {
-      totalResponses: 0,
-      latestResponse: null,
-      oldestResponse: null
-    };
+    
+    if (result.length === 0) {
+      return {
+        totalResponses: 0,
+        latestResponse: null,
+        oldestResponse: null,
+        averageCompletionTime: 0
+      };
+    }
+
+    return result[0];
   } catch (error) {
     console.error('Error in getAnalytics:', error);
     return {
       totalResponses: 0,
       latestResponse: null,
-      oldestResponse: null
+      oldestResponse: null,
+      averageCompletionTime: 0
     };
   }
+};
+
+// Static method to get responses with pagination
+formResponseSchema.statics.getFormResponses = async function(
+  formId: string, 
+  options: { page?: number; limit?: number; sort?: any; filter?: any } = {}
+) {
+  const {
+    page = 1,
+    limit = 10,
+    sort = { submittedAt: -1 },
+    filter = {}
+  } = options;
+
+  const query = { 
+    formId: new mongoose.Types.ObjectId(formId),
+    isValid: true,
+    ...filter
+  };
+
+  return this.find(query)
+    .sort(sort)
+    .limit(limit)
+    .skip((page - 1) * limit)
+    .populate('form', 'title fields')
+    .exec();
+};
+
+// Static method to export responses to CSV format
+formResponseSchema.statics.exportToCSV = async function(formId: string, options: any = {}) {
+  const Form = mongoose.model('Form');
+  const form = await Form.findById(formId);
+  
+  if (!form) {
+    throw new Error('Form not found');
+  }
+
+  const responses = await this.find({ 
+    formId: new mongoose.Types.ObjectId(formId),
+    isValid: true 
+  }).sort({ submittedAt: -1 });
+
+  const headers = ['Submission ID', 'Submitted At', 'IP Address'];
+  
+  // Add form field headers
+  form.fields.forEach((field: any) => {
+    headers.push(field.label);
+  });
+
+  const csvData = responses.map((response: any) => {
+    const row: any[] = [
+      response._id.toString(),
+      response.submittedAt.toISOString(),
+      response.ipAddress || ''
+    ];
+
+    // Add field responses
+    form.fields.forEach((field: any) => {
+      const value = response.responses[field.id];
+      if (Array.isArray(value)) {
+        row.push(value.join(', '));
+      } else if (typeof value === 'object' && value !== null) {
+        row.push(JSON.stringify(value));
+      } else {
+        row.push(value || '');
+      }
+    });
+
+    return row;
+  });
+
+  return {
+    headers,
+    data: csvData
+  };
 };
 
 // Middleware to increment form submissions count
@@ -257,4 +319,13 @@ formResponseSchema.index({ submittedAt: -1 });
 formResponseSchema.index({ isValid: 1 });
 formResponseSchema.index({ formId: 1, isValid: 1 });
 
-module.exports = mongoose.model('FormResponse', formResponseSchema);
+// Interface for the FormResponse model
+interface IFormResponseModel extends Model<IFormResponse> {
+  getAnalytics(formId: string, dateRange?: { start: Date; end: Date }): Promise<any>;
+  getFormResponses(formId: string, options?: any): Promise<IFormResponse[]>;
+  exportToCSV(formId: string, options?: any): Promise<{ headers: string[]; data: any[][] }>;
+}
+
+const FormResponse = mongoose.model<IFormResponse, IFormResponseModel>('FormResponse', formResponseSchema);
+
+export default FormResponse;

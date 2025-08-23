@@ -1,9 +1,27 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
+import mongoose, { Schema, Model, Document } from 'mongoose';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import {
+  IUser,
+  IApiKey,
+  ISubscription,
+  IUserPreferences,
+  IUserProfile,
+  IUserSecurity,
+  IUserUsage,
+  IUserAnalytics,
+  IEmailNotifications,
+  IDashboardPreferences,
+  IAddress,
+  ISocialLinks,
+  ISubscriptionFeatures,
+  IApiPermissions,
+  IRateLimit,
+  IApiUsageStats
+} from '../types';
 
 // API Key schema
-const apiKeySchema = new mongoose.Schema({
+const apiKeySchema = new Schema<IApiKey>({
   name: {
     type: String,
     required: [true, 'API key name is required'],
@@ -75,7 +93,7 @@ const apiKeySchema = new mongoose.Schema({
 }, { _id: false });
 
 // Subscription schema
-const subscriptionSchema = new mongoose.Schema({
+const subscriptionSchema = new Schema<ISubscription>({
   plan: {
     type: String,
     enum: ['free', 'starter', 'professional', 'enterprise'],
@@ -142,7 +160,7 @@ const subscriptionSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Preferences schema
-const preferencesSchema = new mongoose.Schema({
+const preferencesSchema = new Schema<IUserPreferences>({
   theme: {
     type: String,
     enum: ['light', 'dark', 'auto'],
@@ -187,7 +205,8 @@ const preferencesSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
-const userSchema = new mongoose.Schema({
+// Main user schema
+const userSchema = new Schema<IUser>({
   email: {
     type: String,
     required: [true, 'Email is required'],
@@ -335,7 +354,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Virtual for full name
-userSchema.virtual('fullName').get(function() {
+userSchema.virtual('fullName').get(function(this: IUser): string {
   return `${this.firstName || ''} ${this.lastName || ''}`.trim();
 });
 
@@ -357,32 +376,29 @@ userSchema.pre('save', async function(next) {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
-  } catch (error) {
+  } catch (error: any) {
     next(error);
   }
 });
 
 // Instance method to check password
-userSchema.methods.matchPassword = async function(enteredPassword) {
+userSchema.methods.matchPassword = async function(enteredPassword: string): Promise<boolean> {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
 // Instance method to get public profile
-userSchema.methods.getPublicProfile = function() {
+userSchema.methods.getPublicProfile = function(): Partial<IUser> {
   const userObject = this.toObject();
   delete userObject.password;
   delete userObject.resetPasswordToken;
   delete userObject.resetPasswordExpire;
+  delete userObject.security.twoFactorSecret;
+  delete userObject.security.backupCodes;
   return userObject;
 };
 
-// Static method to find user by email
-userSchema.statics.findByEmail = function(email) {
-  return this.findOne({ email: email.toLowerCase() });
-};
-
 // Update lastLogin on successful login
-userSchema.methods.updateLastLogin = function() {
+userSchema.methods.updateLastLogin = function(): Promise<IUser> {
   this.lastLogin = new Date();
   this.analytics.totalLogins += 1;
   if (!this.analytics.firstLoginAt) {
@@ -392,7 +408,7 @@ userSchema.methods.updateLastLogin = function() {
 };
 
 // Generate API key
-userSchema.methods.generateApiKey = function(name, permissions = {}) {
+userSchema.methods.generateApiKey = function(name: string, permissions: Partial<IApiPermissions> = {}): Promise<string> {
   if (!this.hasFeature('apiAccess')) {
     throw new Error('API access not available in current plan');
   }
@@ -411,17 +427,26 @@ userSchema.methods.generateApiKey = function(name, permissions = {}) {
       integrations: { read: false, write: false, delete: false },
       ...permissions
     },
-    isActive: true
-  });
+    rateLimit: {
+      requestsPerMinute: 60,
+      requestsPerHour: 1000,
+      requestsPerDay: 10000
+    },
+    isActive: true,
+    usageStats: {
+      totalRequests: 0
+    },
+    createdAt: new Date()
+  } as IApiKey);
   
   return this.save().then(() => apiKey);
 };
 
 // Validate API key
-userSchema.methods.validateApiKey = function(providedKey) {
+userSchema.methods.validateApiKey = function(providedKey: string): IApiKey | null {
   const hashedProvidedKey = crypto.createHash('sha256').update(providedKey).digest('hex');
   
-  const apiKey = this.apiKeys.find(key => 
+  const apiKey = this.apiKeys.find((key: IApiKey) => 
     key.hashedKey === hashedProvidedKey && 
     key.isActive && 
     (!key.expiresAt || key.expiresAt > new Date())
@@ -437,26 +462,16 @@ userSchema.methods.validateApiKey = function(providedKey) {
     this.save({ validateBeforeSave: false });
   }
   
-  return apiKey;
-};
-
-// Revoke API key
-userSchema.methods.revokeApiKey = function(keyId) {
-  const apiKey = this.apiKeys.id(keyId);
-  if (apiKey) {
-    apiKey.isActive = false;
-    return this.save();
-  }
-  throw new Error('API key not found');
+  return apiKey || null;
 };
 
 // Check if user has specific feature
-userSchema.methods.hasFeature = function(featureName) {
+userSchema.methods.hasFeature = function(featureName: keyof ISubscriptionFeatures): boolean {
   return this.subscription.features[featureName] === true;
 };
 
 // Check usage limits
-userSchema.methods.checkUsageLimit = function(limitType) {
+userSchema.methods.checkUsageLimit = function(limitType: 'forms' | 'responses' | 'storage'): boolean {
   const limits = this.subscription.features;
   const usage = this.usage;
   
@@ -473,7 +488,7 @@ userSchema.methods.checkUsageLimit = function(limitType) {
 };
 
 // Update usage statistics
-userSchema.methods.updateUsage = function(type, amount = 1) {
+userSchema.methods.updateUsage = function(type: 'forms' | 'responses' | 'storage', amount: number = 1): Promise<IUser> {
   switch (type) {
     case 'forms':
       this.usage.formsCreated += amount;
@@ -488,157 +503,13 @@ userSchema.methods.updateUsage = function(type, amount = 1) {
   return this.save({ validateBeforeSave: false });
 };
 
-// Upgrade subscription
-userSchema.methods.upgradeSubscription = function(newPlan, stripeSubscriptionId) {
-  const planFeatures = {
-    free: {
-      maxForms: 3,
-      maxResponses: 100,
-      maxFileStorage: 100,
-      customBranding: false,
-      advancedAnalytics: false,
-      integrations: false,
-      apiAccess: false,
-      customDomains: false,
-      whiteLabeling: false,
-      prioritySupport: false
-    },
-    starter: {
-      maxForms: 10,
-      maxResponses: 1000,
-      maxFileStorage: 500,
-      customBranding: true,
-      advancedAnalytics: true,
-      integrations: true,
-      apiAccess: false,
-      customDomains: false,
-      whiteLabeling: false,
-      prioritySupport: false
-    },
-    professional: {
-      maxForms: 50,
-      maxResponses: 10000,
-      maxFileStorage: 2000,
-      customBranding: true,
-      advancedAnalytics: true,
-      integrations: true,
-      apiAccess: true,
-      customDomains: true,
-      whiteLabeling: false,
-      prioritySupport: true
-    },
-    enterprise: {
-      maxForms: -1, // unlimited
-      maxResponses: -1,
-      maxFileStorage: -1,
-      customBranding: true,
-      advancedAnalytics: true,
-      integrations: true,
-      apiAccess: true,
-      customDomains: true,
-      whiteLabeling: true,
-      prioritySupport: true
-    }
-  };
-  
-  this.subscription.plan = newPlan;
-  this.subscription.features = planFeatures[newPlan];
-  this.subscription.stripeSubscriptionId = stripeSubscriptionId;
-  this.subscription.status = 'active';
-  
-  return this.save();
-};
-
-// Enable two-factor authentication
-userSchema.methods.enableTwoFactor = function(secret, backupCodes) {
-  this.security.twoFactorEnabled = true;
-  this.security.twoFactorSecret = secret;
-  this.security.backupCodes = backupCodes;
-  return this.save();
-};
-
-// Disable two-factor authentication
-userSchema.methods.disableTwoFactor = function() {
-  this.security.twoFactorEnabled = false;
-  this.security.twoFactorSecret = undefined;
-  this.security.backupCodes = [];
-  return this.save();
-};
-
-// Check if account is locked
-userSchema.methods.isLocked = function() {
-  return !!(this.security.lockUntil && this.security.lockUntil > Date.now());
-};
-
-// Increment login attempts
-userSchema.methods.incLoginAttempts = function() {
-  // If we have a previous lock that has expired, restart at 1
-  if (this.security.lockUntil && this.security.lockUntil < Date.now()) {
-    return this.updateOne({
-      $unset: { 'security.lockUntil': 1 },
-      $set: { 'security.loginAttempts': 1 }
-    });
-  }
-  
-  const updates = { $inc: { 'security.loginAttempts': 1 } };
-  
-  // Lock account after 5 failed attempts for 2 hours
-  if (this.security.loginAttempts + 1 >= 5 && !this.isLocked()) {
-    updates.$set = { 'security.lockUntil': Date.now() + 2 * 60 * 60 * 1000 };
-  }
-  
-  return this.updateOne(updates);
-};
-
-// Reset login attempts
-userSchema.methods.resetLoginAttempts = function() {
-  return this.updateOne({
-    $unset: {
-      'security.loginAttempts': 1,
-      'security.lockUntil': 1
-    }
-  });
-};
-
-// Indexes for performance
-userSchema.index({ email: 1 });
-userSchema.index({ createdAt: -1 });
-userSchema.index({ 'subscription.plan': 1 });
-userSchema.index({ 'subscription.status': 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ isActive: 1 });
-userSchema.index({ 'apiKeys.hashedKey': 1 });
-userSchema.index({ 'apiKeys.isActive': 1 });
-userSchema.index({ verificationToken: 1 });
-userSchema.index({ resetPasswordToken: 1 });
-
-// Static method to find users by subscription plan
-userSchema.statics.findByPlan = function(plan) {
-  return this.find({ 'subscription.plan': plan, isActive: true });
-};
-
-// Static method to find users with expiring trials
-userSchema.statics.findExpiringTrials = function(days = 7) {
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + days);
-  
-  return this.find({
-    'subscription.status': 'trialing',
-    'subscription.trialEnd': { $lte: expiryDate },
-    isActive: true
-  });
-};
-
-// Static method to find users with failed payments
-userSchema.statics.findFailedPayments = function() {
-  return this.find({
-    'subscription.status': 'past_due',
-    isActive: true
-  });
+// Static method to find user by email
+userSchema.statics.findByEmail = function(email: string) {
+  return this.findOne({ email: email.toLowerCase() });
 };
 
 // Static method for API key authentication
-userSchema.statics.authenticateApiKey = async function(providedKey) {
+userSchema.statics.authenticateApiKey = async function(providedKey: string) {
   const hashedProvidedKey = crypto.createHash('sha256').update(providedKey).digest('hex');
   
   const user = await this.findOne({
@@ -655,21 +526,24 @@ userSchema.statics.authenticateApiKey = async function(providedKey) {
   return null;
 };
 
-// Static method to get usage statistics
-userSchema.statics.getUsageStats = async function() {
-  const stats = await this.aggregate([
-    {
-      $group: {
-        _id: '$subscription.plan',
-        totalUsers: { $sum: 1 },
-        totalForms: { $sum: '$usage.formsCreated' },
-        totalResponses: { $sum: '$usage.responsesReceived' },
-        totalStorage: { $sum: '$usage.storageUsed' }
-      }
-    }
-  ]);
-  
-  return stats;
-};
+// Indexes for performance
+userSchema.index({ email: 1 });
+userSchema.index({ createdAt: -1 });
+userSchema.index({ 'subscription.plan': 1 });
+userSchema.index({ 'subscription.status': 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
+userSchema.index({ 'apiKeys.hashedKey': 1 });
+userSchema.index({ 'apiKeys.isActive': 1 });
+userSchema.index({ verificationToken: 1 });
+userSchema.index({ resetPasswordToken: 1 });
 
-module.exports = mongoose.model('User', userSchema);
+// Interface for the User model
+interface IUserModel extends Model<IUser> {
+  findByEmail(email: string): Promise<IUser | null>;
+  authenticateApiKey(providedKey: string): Promise<{ user: IUser; apiKey: IApiKey } | null>;
+}
+
+const User = mongoose.model<IUser, IUserModel>('User', userSchema);
+
+export default User;

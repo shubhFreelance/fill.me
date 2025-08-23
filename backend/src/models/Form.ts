@@ -1,9 +1,42 @@
-const mongoose = require('mongoose');
-const mongoosePaginate = require('mongoose-paginate-v2');
-const { v4: uuidv4 } = require('uuid');
+import mongoose, { Schema, Model } from 'mongoose';
+import mongoosePaginate from 'mongoose-paginate-v2';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  IForm,
+  IFormField,
+  IFormCustomization,
+  IFormAnalytics,
+  IFormSettings,
+  IThankYouPage,
+  IPaymentSettings,
+  ILanguageSettings,
+  ISeoSettings,
+  IConditionalLogic,
+  IAnswerRecall,
+  ICalculation,
+  IPrefillSettings,
+  IFieldProperties,
+  FormFieldType,
+  ICondition,
+  INotificationSettings,
+  IAutoSaveSettings,
+  IPasswordProtection,
+  IResponseLimit,
+  IScheduleSettings,
+  IGdprSettings,
+  ILanguage,
+  IRatingScale,
+  IScale,
+  IMatrix,
+  IFieldPayment,
+  IAddressField,
+  IFileUpload,
+  IMediaField,
+  IDeviceStats
+} from '../types';
 
 // Form field schema
-const formFieldSchema = new mongoose.Schema({
+const formFieldSchema = new Schema<IFormField>({
   id: {
     type: String,
     default: uuidv4,
@@ -17,7 +50,7 @@ const formFieldSchema = new mongoose.Schema({
       'number', 'phone', 'url', 'rating', 'scale', 'matrix', 'signature', 'payment',
       'address', 'name', 'password', 'hidden', 'divider', 'heading', 'paragraph',
       'image', 'video', 'audio', 'calendar'
-    ]
+    ] as FormFieldType[]
   },
   label: {
     type: String,
@@ -67,7 +100,7 @@ const formFieldSchema = new mongoose.Schema({
           type: String,
           enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
         },
-        value: mongoose.Schema.Types.Mixed,
+        value: Schema.Types.Mixed,
         logicalOperator: {
           type: String,
           enum: ['and', 'or'],
@@ -87,7 +120,7 @@ const formFieldSchema = new mongoose.Schema({
           type: String,
           enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
         },
-        value: mongoose.Schema.Types.Mixed
+        value: Schema.Types.Mixed
       }]
     }
   },
@@ -121,7 +154,7 @@ const formFieldSchema = new mongoose.Schema({
       default: false
     },
     urlParameter: String, // URL parameter name to pull value from
-    defaultValue: mongoose.Schema.Types.Mixed
+    defaultValue: Schema.Types.Mixed
   },
   // Advanced field properties
   properties: {
@@ -225,7 +258,7 @@ const formFieldSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Form customization schema
-const customizationSchema = new mongoose.Schema({
+const customizationSchema = new Schema<IFormCustomization>({
   primaryColor: {
     type: String,
     default: '#3b82f6',
@@ -261,7 +294,7 @@ const customizationSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Analytics schema
-const analyticsSchema = new mongoose.Schema({
+const analyticsSchema = new Schema<IFormAnalytics>({
   views: {
     type: Number,
     default: 0,
@@ -317,7 +350,7 @@ const analyticsSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Main form schema
-const formSchema = new mongoose.Schema({
+const formSchema = new Schema<IForm>({
   title: {
     type: String,
     required: [true, 'Form title is required'],
@@ -332,7 +365,7 @@ const formSchema = new mongoose.Schema({
   fields: {
     type: [formFieldSchema],
     validate: {
-      validator: function(fields) {
+      validator: function(fields: IFormField[]) {
         return fields.length > 0;
       },
       message: 'Form must have at least one field'
@@ -351,7 +384,7 @@ const formSchema = new mongoose.Schema({
     default: true
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -369,12 +402,12 @@ const formSchema = new mongoose.Schema({
     type: String
   },
   templateId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'Template',
     index: true
   },
   workspaceId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'Workspace',
     index: true
   },
@@ -568,8 +601,8 @@ formSchema.virtual('responseCount', {
 });
 
 // Virtual for conversion rate
-formSchema.virtual('conversionRate').get(function() {
-  if (this.analytics.views === 0) return 0;
+formSchema.virtual('conversionRate').get(function(this: IForm): string {
+  if (this.analytics.views === 0) return '0.00';
   return ((this.analytics.submissions / this.analytics.views) * 100).toFixed(2);
 });
 
@@ -587,19 +620,19 @@ formSchema.pre('save', function(next) {
 });
 
 // Instance method to increment views
-formSchema.methods.incrementViews = function() {
+formSchema.methods.incrementViews = function(): Promise<IForm> {
   this.analytics.views += 1;
   return this.save({ validateBeforeSave: false });
 };
 
 // Instance method to increment submissions
-formSchema.methods.incrementSubmissions = function() {
+formSchema.methods.incrementSubmissions = function(): Promise<IForm> {
   this.analytics.submissions += 1;
   return this.save({ validateBeforeSave: false });
 };
 
 // Instance method to get public form data
-formSchema.methods.getPublicData = function() {
+formSchema.methods.getPublicData = function(): Partial<IForm> {
   return {
     _id: this._id,
     title: this.title,
@@ -615,8 +648,8 @@ formSchema.methods.getPublicData = function() {
 };
 
 // Instance method to evaluate conditional logic
-formSchema.methods.evaluateConditionalLogic = function(fieldId, responses) {
-  const field = this.fields.find(f => f.id === fieldId);
+formSchema.methods.evaluateConditionalLogic = function(fieldId: string, responses: Record<string, any>): boolean {
+  const field = this.fields.find((f: IFormField) => f.id === fieldId);
   if (!field || !field.conditional.show.enabled) {
     return true; // Show by default if no conditions
   }
@@ -624,7 +657,7 @@ formSchema.methods.evaluateConditionalLogic = function(fieldId, responses) {
   const conditions = field.conditional.show.conditions;
   if (!conditions || conditions.length === 0) return true;
   
-  return conditions.every(condition => {
+  return conditions.every((condition: ICondition) => {
     const value = responses[condition.fieldId];
     
     switch (condition.operator) {
@@ -651,18 +684,18 @@ formSchema.methods.evaluateConditionalLogic = function(fieldId, responses) {
 };
 
 // Instance method to calculate field values
-formSchema.methods.calculateFieldValue = function(fieldId, responses) {
-  const field = this.fields.find(f => f.id === fieldId);
+formSchema.methods.calculateFieldValue = function(fieldId: string, responses: Record<string, any>): string | null {
+  const field = this.fields.find((f: IFormField) => f.id === fieldId);
   if (!field || !field.calculation.enabled) {
     return null;
   }
   
-  let formula = field.calculation.formula;
+  let formula = field.calculation.formula || '';
   
   // Replace field IDs with actual values
-  field.calculation.dependencies.forEach(depFieldId => {
+  field.calculation.dependencies.forEach((depFieldId: string) => {
     const value = responses[depFieldId] || 0;
-    formula = formula.replace(new RegExp(`{{${depFieldId}}}`, 'g'), value);
+    formula = formula.replace(new RegExp(`{{${depFieldId}}}`, 'g'), value.toString());
   });
   
   try {
@@ -681,150 +714,25 @@ formSchema.methods.calculateFieldValue = function(fieldId, responses) {
       case 'decimal':
         return result.toFixed(2);
       default:
-        return Math.round(result);
+        return Math.round(result).toString();
     }
   } catch (error) {
     return 'Error in calculation';
   }
 };
 
-// Instance method to apply answer recall
-formSchema.methods.applyAnswerRecall = function(fieldId, responses) {
-  const field = this.fields.find(f => f.id === fieldId);
-  if (!field || !field.answerRecall.enabled) {
-    return field.label;
-  }
-  
-  let text = field.answerRecall.template || field.label;
-  const sourceValue = responses[field.answerRecall.sourceFieldId] || '';
-  
-  return text.replace(/{{sourceField}}/g, sourceValue);
-};
-
-// Instance method to get visible fields based on responses
-formSchema.methods.getVisibleFields = function(responses = {}) {
-  return this.fields.filter(field => {
-    return this.evaluateConditionalLogic(field.id, responses);
-  });
-};
-
-// Instance method to validate form submission
-formSchema.methods.validateSubmission = function(responses) {
-  const errors = [];
-  const visibleFields = this.getVisibleFields(responses);
-  
-  visibleFields.forEach(field => {
-    const value = responses[field.id];
-    
-    // Check required fields
-    if (field.required && (!value || value === '')) {
-      errors.push({
-        fieldId: field.id,
-        message: `${field.label} is required`
-      });
-    }
-    
-    // Validate field types
-    if (value && value !== '') {
-      switch (field.type) {
-        case 'email':
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(value)) {
-            errors.push({
-              fieldId: field.id,
-              message: 'Please enter a valid email address'
-            });
-          }
-          break;
-        case 'phone':
-          const phoneRegex = /^[+]?[1-9]?[0-9]{7,15}$/;
-          if (!phoneRegex.test(value.replace(/\s|-|\(|\)/g, ''))) {
-            errors.push({
-              fieldId: field.id,
-              message: 'Please enter a valid phone number'
-            });
-          }
-          break;
-        case 'url':
-          try {
-            new URL(value);
-          } catch {
-            errors.push({
-              fieldId: field.id,
-              message: 'Please enter a valid URL'
-            });
-          }
-          break;
-      }
-    }
-  });
-  
-  return errors;
-};
-
 // Static method to find by public URL
-formSchema.statics.findByPublicUrl = function(publicUrl) {
+formSchema.statics.findByPublicUrl = function(publicUrl: string) {
   return this.findOne({ publicUrl, isPublic: true, isActive: true });
 };
 
 // Static method to find user forms
-formSchema.statics.findUserForms = function(userId, options = {}) {
+formSchema.statics.findUserForms = function(userId: string, options: any = {}) {
   const query = { userId, isActive: true };
   return this.find(query)
     .populate('responseCount')
     .sort(options.sort || { updatedAt: -1 })
     .limit(options.limit || 0);
-};
-
-// Static method to recalculate analytics for all forms
-formSchema.statics.recalculateAnalytics = async function() {
-  try {
-    const FormResponse = mongoose.model('FormResponse');
-    const forms = await this.find({ isActive: true });
-    
-    for (const form of forms) {
-      const submissionCount = await FormResponse.countDocuments({
-        formId: form._id,
-        isValid: true
-      });
-      
-      // Update the form's analytics
-      await this.findByIdAndUpdate(
-        form._id,
-        { 'analytics.submissions': submissionCount },
-        { new: true }
-      );
-      
-      console.log(`Updated form ${form.title}: ${submissionCount} submissions`);
-    }
-    
-    console.log('Analytics recalculation completed');
-  } catch (error) {
-    console.error('Error recalculating analytics:', error);
-  }
-};
-
-// Static method to sync single form analytics
-formSchema.statics.syncFormAnalytics = async function(formId) {
-  try {
-    const FormResponse = mongoose.model('FormResponse');
-    const submissionCount = await FormResponse.countDocuments({
-      formId: new mongoose.Types.ObjectId(formId),
-      isValid: true
-    });
-    
-    const updatedForm = await this.findByIdAndUpdate(
-      formId,
-      { 'analytics.submissions': submissionCount },
-      { new: true }
-    );
-    
-    console.log(`Synced form analytics: ${submissionCount} submissions`);
-    return updatedForm;
-  } catch (error) {
-    console.error('Error syncing form analytics:', error);
-    throw error;
-  }
 };
 
 // Indexes for performance
@@ -833,13 +741,19 @@ formSchema.index({ publicUrl: 1 });
 formSchema.index({ isPublic: 1, isActive: 1 });
 formSchema.index({ 'analytics.submissions': -1 });
 formSchema.index({ 'analytics.views': -1 });
+formSchema.index({ templateId: 1 });
+formSchema.index({ workspaceId: 1 });
 
 // Add pagination plugin
 formSchema.plugin(mongoosePaginate);
 
-module.exports = mongoose.model('Form', formSchema);
+// Interface for the Form model
+interface IFormModel extends Model<IForm> {
+  findByPublicUrl(publicUrl: string): Promise<IForm | null>;
+  findUserForms(userId: string, options?: any): Promise<IForm[]>;
+}
 
-// Export schemas for reuse
-module.exports.formFieldSchema = formFieldSchema;
-module.exports.customizationSchema = customizationSchema;
-module.exports.analyticsSchema = analyticsSchema;
+const Form = mongoose.model<IForm, IFormModel>('Form', formSchema);
+
+export default Form;
+export { formFieldSchema, customizationSchema, analyticsSchema };
