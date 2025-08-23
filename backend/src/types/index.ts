@@ -391,6 +391,288 @@ export interface IAutoSaveSettings {
   interval: number;
 }
 
+// Partial Submission interfaces
+export interface IPartialSubmission {
+  _id?: Types.ObjectId;
+  formId: Types.ObjectId;
+  sessionId: string;
+  responses: Record<string, any>;
+  isComplete: boolean;
+  progress: IProgressInfo;
+  lastSavedAt: Date;
+  expiresAt: Date;
+  metadata: IPartialSubmissionMetadata;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface IPartialSubmissionMetadata {
+  ipAddress?: string;
+  userAgent?: string;
+  screenResolution?: string;
+  timezone?: string;
+  language?: string;
+  referrer?: string;
+  saveCount?: number;
+  fieldCount?: number;
+  timeSpent?: number;
+}
+
+export interface IProgressInfo {
+  totalFields: number;
+  answeredFields: number;
+  percentage: number;
+  missingRequiredFields: number;
+}
+
+export interface IPartialSubmissionResult {
+  success: boolean;
+  submissionId?: string;
+  sessionId?: string;
+  responses?: Record<string, any>;
+  progress?: IProgressInfo;
+  lastSavedAt?: Date;
+  expiresAt?: Date;
+  metadata?: IPartialSubmissionMetadata;
+  createdAt?: Date;
+  error?: string;
+}
+
+export interface ICompletionResult {
+  success: boolean;
+  submissionId?: string;
+  wasPartialSubmission: boolean;
+  partialSubmissionData?: {
+    sessionId: string;
+    createdAt: Date;
+    saveCount: number;
+    totalTimeSpent: number;
+  };
+  error?: string;
+}
+
+export interface IPartialSubmissionStats {
+  totalPartialSubmissions: number;
+  averageProgress: number;
+  averageSaveCount: number;
+  averageTimeSpent: number;
+  totalFieldsSaved: number;
+  completionRate: number;
+}
+
+// Export interfaces
+export interface IExportOptions {
+  format?: 'excel' | 'pdf' | 'csv';
+  dateFrom?: string;
+  dateTo?: string;
+  selectedFields?: string[];
+  includeMetadata?: boolean;
+  includeSummary?: boolean;
+  includeAnalysis?: boolean;
+  limit?: number;
+  filters?: IExportFilter[];
+}
+
+export interface IExportFilter {
+  field: string;
+  operator: 'equals' | 'contains' | 'not_empty' | 'greater_than' | 'less_than';
+  value: any;
+}
+
+export interface IExportResult {
+  success: boolean;
+  data?: {
+    buffer: Buffer;
+    filename: string;
+    mimeType: string;
+    size: number;
+    recordCount: number;
+    exportedAt: Date;
+    metadata: any;
+  };
+  error?: string;
+}
+
+export interface IExportStats {
+  formId: string;
+  formTitle: string;
+  totalResponses: number;
+  estimatedSizes: Record<string, string>;
+  supportedFormats: string[];
+  recentExports: IExportHistory[];
+  maxRecordsPerExport: Record<string, number>;
+  features: {
+    includeMetadata: boolean;
+    includeSummary: boolean;
+    includeAnalysis: boolean;
+    dateFiltering: boolean;
+    fieldSelection: boolean;
+    customFormatting: boolean;
+  };
+}
+
+export interface IExportHistory {
+  id: string;
+  format: string;
+  recordCount: number;
+  fileSize: number;
+  exportedAt: Date;
+  exportedBy?: string;
+  downloadCount: number;
+}
+
+// GDPR Compliance interfaces
+export type IGDPRConsentType = 'data_processing' | 'marketing' | 'analytics' | 'cookies' | 'third_party_sharing';
+
+export interface IGDPRConsentData {
+  purpose: string;
+  legalBasis: 'consent' | 'contract' | 'legal_obligation' | 'vital_interests' | 'public_task' | 'legitimate_interests';
+  consentGiven: boolean;
+  ipAddress?: string;
+  userAgent?: string;
+  consentMethod: 'checkbox' | 'button_click' | 'form_submission' | 'email_confirmation';
+  explicitConsent?: boolean;
+  consentText?: string;
+  granularConsent?: Record<string, boolean>;
+  parentalConsent?: boolean;
+  dataCategories?: string[];
+  retentionPeriod?: number;
+  source?: string;
+}
+
+export interface IGDPRConsentRecord extends IGDPRConsentData {
+  id: string;
+  userId: string;
+  consentType: IGDPRConsentType;
+  consentTimestamp: Date;
+  optInDetails: {
+    explicitConsent: boolean;
+    consentText?: string;
+    granularConsent: Record<string, boolean>;
+    parentalConsent: boolean;
+  };
+  isActive: boolean;
+  revokedAt: Date | null;
+}
+
+export interface IGDPRRevocationData {
+  userId: string;
+  ipAddress?: string;
+  userAgent?: string;
+  revocationMethod: 'button_click' | 'email_request' | 'phone_request' | 'written_request';
+}
+
+export interface IGDPRAccessRequest {
+  email?: string;
+  userId?: string;
+  requestId?: string;
+  verificationMethod: 'email' | 'identity_document' | 'account_login';
+}
+
+export interface IGDPRAccessResponse {
+  requestId: string;
+  userId: string;
+  email: string;
+  requestDate: Date;
+  dataExported: Record<string, any>;
+  exportFormat: string;
+  retentionNotice: string;
+  dataProcessingPurposes: string[];
+  thirdPartySharing: string[];
+  userRights: string[];
+}
+
+export interface IGDPRErasureRequest {
+  email?: string;
+  userId?: string;
+  requestId?: string;
+  erasureScope: string[];
+  verificationMethod: 'email' | 'identity_document' | 'account_login';
+}
+
+export interface IGDPRErasureResponse {
+  requestId: string;
+  userId: string;
+  email: string;
+  requestDate: Date;
+  erasureCompleted: boolean;
+  erasureResults: IGDPRErasureResult[];
+  retainedData: string[];
+  legalObligations: string[];
+}
+
+export interface IGDPRErasureResult {
+  dataCategory: string;
+  recordsAffected: number;
+  erasureMethod: 'deletion' | 'anonymization' | 'pseudonymization';
+  completedAt: Date;
+  success: boolean;
+  error?: string;
+}
+
+export interface IGDPRPortabilityRequest {
+  email?: string;
+  userId?: string;
+  requestId?: string;
+  exportFormat?: 'json' | 'csv' | 'xml';
+  verificationMethod: 'email' | 'identity_document' | 'account_login';
+}
+
+export interface IGDPRPortabilityResponse {
+  requestId: string;
+  userId: string;
+  email: string;
+  requestDate: Date;
+  exportFormat: string;
+  portableData: any;
+  dataCategories: string[];
+  technicalDetails: {
+    encoding: string;
+    structure: string;
+    apiVersion: string;
+  };
+}
+
+export interface IGDPRDataProcessingRecord {
+  id: string;
+  formId: string;
+  formTitle: string;
+  dataController: {
+    name: string;
+    email: string;
+    address: string;
+  };
+  processingPurpose: string[];
+  legalBasis: string;
+  dataCategories: string[];
+  dataSubjects: string[];
+  recipients: string[];
+  internationalTransfers: boolean;
+  retentionPeriod: number;
+  securityMeasures: string[];
+  dataSubjectRights: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IGDPRComplianceValidation {
+  formId: string;
+  formTitle: string;
+  complianceScore: number;
+  isCompliant: boolean;
+  validationResults: IGDPRValidationResult[];
+  recommendations: string[];
+  validatedAt: Date;
+}
+
+export interface IGDPRValidationResult {
+  requirement: string;
+  compliant: boolean;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  message: string;
+  recommendation: string;
+}
+
 export interface IPasswordProtection {
   enabled: boolean;
   password?: string;
@@ -488,6 +770,9 @@ export interface IPaymentSettings {
 export interface ILanguageSettings {
   default: string;
   supported: ILanguage[];
+  autoDetect: boolean;
+  fallbackLanguage: string;
+  allowUserSelection: boolean;
 }
 
 export interface ILanguage {

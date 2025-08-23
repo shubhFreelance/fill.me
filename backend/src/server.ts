@@ -31,6 +31,13 @@ import domainRoutes from './routes/domains';
 import typeformImportRoutes from './routes/typeformImport';
 import thankYouPageRoutes from './routes/thankYouPages';
 import confettiRoutes from './routes/confetti';
+import languageRoutes from './routes/languages';
+import advancedAnalyticsRoutes from './routes/advancedAnalytics';
+import chartRoutes from './routes/charts';
+import dateFilterRoutes from './routes/dateFilters';
+import partialSubmissionRoutes from './routes/partialSubmissions';
+import exportRoutes from './routes/exports';
+import gdprRoutes from './routes/gdpr';
 import errorHandler from './middleware/errorHandler';
 import { EnvironmentConfig } from './types';
 
@@ -151,6 +158,13 @@ app.use('/api/domains', domainRoutes);
 app.use('/api/typeform', typeformImportRoutes);
 app.use('/api/thank-you-pages', thankYouPageRoutes);
 app.use('/api/confetti', confettiRoutes);
+app.use('/api/languages', languageRoutes);
+app.use('/api/advanced-analytics', advancedAnalyticsRoutes);
+app.use('/api/charts', chartRoutes);
+app.use('/api/date-filters', dateFilterRoutes);
+app.use('/api/partial-submissions', partialSubmissionRoutes);
+app.use('/api/exports', exportRoutes);
+app.use('/api/gdpr', gdprRoutes);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {
