@@ -25,6 +25,12 @@ import conditionalLogicRoutes from './routes/conditionalLogic';
 import answerRecallRoutes from './routes/answerRecall';
 import calculatorRoutes from './routes/calculator';
 import prefillRoutes from './routes/prefill';
+import themeRoutes from './routes/themes';
+import qrcodeRoutes from './routes/qrcode';
+import domainRoutes from './routes/domains';
+import typeformImportRoutes from './routes/typeformImport';
+import thankYouPageRoutes from './routes/thankYouPages';
+import confettiRoutes from './routes/confetti';
 import errorHandler from './middleware/errorHandler';
 import { EnvironmentConfig } from './types';
 
@@ -139,6 +145,12 @@ app.use('/api/conditional-logic', conditionalLogicRoutes);
 app.use('/api/answer-recall', answerRecallRoutes);
 app.use('/api/calculator', calculatorRoutes);
 app.use('/api/prefill', prefillRoutes);
+app.use('/api/themes', themeRoutes);
+app.use('/api/qrcode', qrcodeRoutes);
+app.use('/api/domains', domainRoutes);
+app.use('/api/typeform', typeformImportRoutes);
+app.use('/api/thank-you-pages', thankYouPageRoutes);
+app.use('/api/confetti', confettiRoutes);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {

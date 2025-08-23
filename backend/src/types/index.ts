@@ -334,6 +334,8 @@ export interface IFormCustomization {
   backgroundImage?: string;
   theme: 'default' | 'minimal' | 'modern' | 'classic' | 'custom';
   customCss?: string;
+  thankYouPage?: ICustomThankYouPage;
+  confetti?: IConfettiSettings;
 }
 
 export interface IFormAnalytics {
@@ -420,6 +422,58 @@ export interface IThankYouPage {
   customHtml?: string;
   showConfetti: boolean;
   autoRedirectDelay: number;
+}
+
+// Enhanced Custom Thank You Page interface for advanced customization
+export interface ICustomThankYouPage {
+  id: string;
+  formId: string;
+  isEnabled: boolean;
+  title: string;
+  message: string;
+  showSubmissionId: boolean;
+  showResetButton: boolean;
+  resetButtonText?: string;
+  redirectEnabled: boolean;
+  redirectUrl?: string;
+  redirectDelay: number;
+  customCss?: string;
+  showShareButtons: boolean;
+  shareMessage?: string;
+  customData: Record<string, any>;
+  analytics: IThankYouPageAnalytics;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IThankYouPageAnalytics {
+  viewCount: number;
+  shareCount: number;
+  resetCount: number;
+}
+
+// Confetti Animation interfaces
+export interface IConfettiSettings {
+  enabled: boolean;
+  config: IConfettiConfig;
+  updatedAt: Date;
+}
+
+export interface IConfettiConfig {
+  particleCount: number;
+  spread: number;
+  origin: { x?: number; y?: number };
+  colors: string[];
+  duration: number;
+  scalar: number;
+  drift: number;
+  gravity: number;
+  ticks: number;
+  shapes: string[];
+  zIndex: number;
+  multiple?: boolean;
+  launches?: number;
+  launchDelay?: number;
 }
 
 export interface IPaymentSettings {
