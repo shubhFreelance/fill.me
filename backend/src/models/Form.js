@@ -12,7 +12,12 @@ const formFieldSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['text', 'textarea', 'email', 'dropdown', 'radio', 'checkbox', 'date', 'file']
+    enum: [
+      'text', 'textarea', 'email', 'dropdown', 'radio', 'checkbox', 'date', 'file',
+      'number', 'phone', 'url', 'rating', 'scale', 'matrix', 'signature', 'payment',
+      'address', 'name', 'password', 'hidden', 'divider', 'heading', 'paragraph',
+      'image', 'video', 'audio', 'calendar'
+    ]
   },
   label: {
     type: String,
@@ -48,6 +53,174 @@ const formFieldSchema = new mongoose.Schema({
   order: {
     type: Number,
     default: 0
+  },
+  // Advanced logic features
+  conditional: {
+    show: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      conditions: [{
+        fieldId: String,
+        operator: {
+          type: String,
+          enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
+        },
+        value: mongoose.Schema.Types.Mixed,
+        logicalOperator: {
+          type: String,
+          enum: ['and', 'or'],
+          default: 'and'
+        }
+      }]
+    },
+    skip: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      targetFieldId: String, // Field to skip to
+      conditions: [{
+        fieldId: String,
+        operator: {
+          type: String,
+          enum: ['equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty']
+        },
+        value: mongoose.Schema.Types.Mixed
+      }]
+    }
+  },
+  // Answer recall - reference previous answers
+  answerRecall: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    sourceFieldId: String, // Field to recall answer from
+    template: String // Template like "Hello {{sourceField}}, how are you?"
+  },
+  // Field calculations
+  calculation: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    formula: String, // Mathematical formula using field IDs
+    dependencies: [String], // Array of field IDs this calculation depends on
+    displayType: {
+      type: String,
+      enum: ['currency', 'percentage', 'number', 'decimal'],
+      default: 'number'
+    }
+  },
+  // Pre-fill settings
+  prefill: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    urlParameter: String, // URL parameter name to pull value from
+    defaultValue: mongoose.Schema.Types.Mixed
+  },
+  // Advanced field properties
+  properties: {
+    // For rating fields
+    ratingScale: {
+      min: {
+        type: Number,
+        default: 1
+      },
+      max: {
+        type: Number,
+        default: 5
+      },
+      step: {
+        type: Number,
+        default: 1
+      },
+      labels: {
+        start: String,
+        end: String
+      }
+    },
+    // For scale fields
+    scale: {
+      min: {
+        type: Number,
+        default: 0
+      },
+      max: {
+        type: Number,
+        default: 10
+      },
+      step: {
+        type: Number,
+        default: 1
+      },
+      leftLabel: String,
+      rightLabel: String
+    },
+    // For matrix fields
+    matrix: {
+      rows: [String],
+      columns: [String],
+      allowMultiple: {
+        type: Boolean,
+        default: false
+      }
+    },
+    // For payment fields
+    payment: {
+      amount: Number,
+      currency: {
+        type: String,
+        default: 'usd'
+      },
+      description: String,
+      allowCustomAmount: {
+        type: Boolean,
+        default: false
+      }
+    },
+    // For address fields
+    address: {
+      includeCountry: {
+        type: Boolean,
+        default: true
+      },
+      includeState: {
+        type: Boolean,
+        default: true
+      },
+      includePostalCode: {
+        type: Boolean,
+        default: true
+      },
+      defaultCountry: String
+    },
+    // For file upload fields
+    fileUpload: {
+      maxFileSize: {
+        type: Number,
+        default: 10 // MB
+      },
+      allowedTypes: [String],
+      maxFiles: {
+        type: Number,
+        default: 1
+      }
+    },
+    // For media fields (image, video, audio)
+    media: {
+      url: String,
+      caption: String,
+      alt: String,
+      autoplay: {
+        type: Boolean,
+        default: false
+      }
+    }
   }
 }, { _id: false });
 
@@ -66,6 +239,24 @@ const customizationSchema = new mongoose.Schema({
   logoUrl: {
     type: String,
     trim: true
+  },
+  // Enhanced customization options
+  backgroundColor: {
+    type: String,
+    default: '#ffffff'
+  },
+  backgroundImage: {
+    type: String,
+    trim: true
+  },
+  theme: {
+    type: String,
+    enum: ['default', 'minimal', 'modern', 'classic', 'custom'],
+    default: 'default'
+  },
+  customCss: {
+    type: String,
+    trim: true
   }
 }, { _id: false });
 
@@ -80,6 +271,48 @@ const analyticsSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
+  },
+  // Enhanced analytics
+  starts: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  completions: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  abandons: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  averageCompletionTime: {
+    type: Number,
+    default: 0 // in seconds
+  },
+  fieldDropoffs: {
+    type: Map,
+    of: Number // fieldId -> dropoff count
+  },
+  deviceStats: {
+    mobile: {
+      type: Number,
+      default: 0
+    },
+    tablet: {
+      type: Number,
+      default: 0
+    },
+    desktop: {
+      type: Number,
+      default: 0
+    }
+  },
+  referrerStats: {
+    type: Map,
+    of: Number // referrer -> count
   }
 }, { _id: false });
 
@@ -134,6 +367,191 @@ const formSchema = new mongoose.Schema({
   },
   embedCode: {
     type: String
+  },
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Template',
+    index: true
+  },
+  workspaceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Workspace',
+    index: true
+  },
+  // Advanced form settings
+  settings: {
+    // Multi-step form settings
+    isMultiStep: {
+      type: Boolean,
+      default: false
+    },
+    showProgressBar: {
+      type: Boolean,
+      default: false
+    },
+    allowBackNavigation: {
+      type: Boolean,
+      default: true
+    },
+    // Submission settings
+    allowMultipleSubmissions: {
+      type: Boolean,
+      default: true
+    },
+    requireLogin: {
+      type: Boolean,
+      default: false
+    },
+    collectIpAddress: {
+      type: Boolean,
+      default: true
+    },
+    collectUserAgent: {
+      type: Boolean,
+      default: true
+    },
+    // Notification settings
+    notifications: {
+      email: {
+        enabled: {
+          type: Boolean,
+          default: false
+        },
+        recipients: [String],
+        subject: String,
+        template: String
+      },
+      webhook: {
+        enabled: {
+          type: Boolean,
+          default: false
+        },
+        url: String,
+        headers: {
+          type: Map,
+          of: String
+        }
+      }
+    },
+    // Auto-save settings
+    autoSave: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      interval: {
+        type: Number,
+        default: 30 // seconds
+      }
+    },
+    // Password protection
+    passwordProtection: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      password: String
+    },
+    // Response limits
+    responseLimit: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      maxResponses: Number
+    },
+    // Schedule settings
+    schedule: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      startDate: Date,
+      endDate: Date,
+      timezone: String
+    },
+    // GDPR compliance
+    gdpr: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      consentText: String,
+      privacyPolicyUrl: String,
+      dataRetentionDays: {
+        type: Number,
+        default: 0 // 0 means keep forever
+      }
+    }
+  },
+  // Thank you page settings
+  thankYouPage: {
+    type: {
+      type: String,
+      enum: ['message', 'redirect', 'custom'],
+      default: 'message'
+    },
+    message: {
+      type: String,
+      default: 'Thank you for your submission!'
+    },
+    redirectUrl: String,
+    customHtml: String,
+    showConfetti: {
+      type: Boolean,
+      default: false
+    },
+    autoRedirectDelay: {
+      type: Number,
+      default: 0 // seconds, 0 means no auto redirect
+    }
+  },
+  // Payment integration
+  payment: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    provider: {
+      type: String,
+      enum: ['stripe', 'paypal'],
+      default: 'stripe'
+    },
+    amount: {
+      type: Number,
+      min: 0
+    },
+    currency: {
+      type: String,
+      default: 'usd'
+    },
+    description: String,
+    allowCustomAmount: {
+      type: Boolean,
+      default: false
+    }
+  },
+  // Multi-language support
+  languages: {
+    default: {
+      type: String,
+      default: 'en'
+    },
+    supported: [{
+      code: String,
+      name: String,
+      translations: {
+        type: Map,
+        of: String // key -> translated text
+      }
+    }]
+  },
+  // SEO settings
+  seo: {
+    title: String,
+    description: String,
+    keywords: [String],
+    ogImage: String
   }
 }, {
   timestamps: true,
@@ -188,8 +606,160 @@ formSchema.methods.getPublicData = function() {
     description: this.description,
     fields: this.fields,
     customization: this.customization,
-    publicUrl: this.publicUrl
+    publicUrl: this.publicUrl,
+    settings: this.settings,
+    thankYouPage: this.thankYouPage,
+    payment: this.payment,
+    languages: this.languages
   };
+};
+
+// Instance method to evaluate conditional logic
+formSchema.methods.evaluateConditionalLogic = function(fieldId, responses) {
+  const field = this.fields.find(f => f.id === fieldId);
+  if (!field || !field.conditional.show.enabled) {
+    return true; // Show by default if no conditions
+  }
+  
+  const conditions = field.conditional.show.conditions;
+  if (!conditions || conditions.length === 0) return true;
+  
+  return conditions.every(condition => {
+    const value = responses[condition.fieldId];
+    
+    switch (condition.operator) {
+      case 'equals':
+        return value === condition.value;
+      case 'not_equals':
+        return value !== condition.value;
+      case 'contains':
+        return value && value.includes(condition.value);
+      case 'not_contains':
+        return !value || !value.includes(condition.value);
+      case 'greater_than':
+        return Number(value) > Number(condition.value);
+      case 'less_than':
+        return Number(value) < Number(condition.value);
+      case 'is_empty':
+        return !value || value === '';
+      case 'is_not_empty':
+        return value && value !== '';
+      default:
+        return true;
+    }
+  });
+};
+
+// Instance method to calculate field values
+formSchema.methods.calculateFieldValue = function(fieldId, responses) {
+  const field = this.fields.find(f => f.id === fieldId);
+  if (!field || !field.calculation.enabled) {
+    return null;
+  }
+  
+  let formula = field.calculation.formula;
+  
+  // Replace field IDs with actual values
+  field.calculation.dependencies.forEach(depFieldId => {
+    const value = responses[depFieldId] || 0;
+    formula = formula.replace(new RegExp(`{{${depFieldId}}}`, 'g'), value);
+  });
+  
+  try {
+    // Basic formula evaluation (implement proper parser for production)
+    const result = eval(formula);
+    
+    // Format based on display type
+    switch (field.calculation.displayType) {
+      case 'currency':
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD'
+        }).format(result);
+      case 'percentage':
+        return `${(result * 100).toFixed(2)}%`;
+      case 'decimal':
+        return result.toFixed(2);
+      default:
+        return Math.round(result);
+    }
+  } catch (error) {
+    return 'Error in calculation';
+  }
+};
+
+// Instance method to apply answer recall
+formSchema.methods.applyAnswerRecall = function(fieldId, responses) {
+  const field = this.fields.find(f => f.id === fieldId);
+  if (!field || !field.answerRecall.enabled) {
+    return field.label;
+  }
+  
+  let text = field.answerRecall.template || field.label;
+  const sourceValue = responses[field.answerRecall.sourceFieldId] || '';
+  
+  return text.replace(/{{sourceField}}/g, sourceValue);
+};
+
+// Instance method to get visible fields based on responses
+formSchema.methods.getVisibleFields = function(responses = {}) {
+  return this.fields.filter(field => {
+    return this.evaluateConditionalLogic(field.id, responses);
+  });
+};
+
+// Instance method to validate form submission
+formSchema.methods.validateSubmission = function(responses) {
+  const errors = [];
+  const visibleFields = this.getVisibleFields(responses);
+  
+  visibleFields.forEach(field => {
+    const value = responses[field.id];
+    
+    // Check required fields
+    if (field.required && (!value || value === '')) {
+      errors.push({
+        fieldId: field.id,
+        message: `${field.label} is required`
+      });
+    }
+    
+    // Validate field types
+    if (value && value !== '') {
+      switch (field.type) {
+        case 'email':
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            errors.push({
+              fieldId: field.id,
+              message: 'Please enter a valid email address'
+            });
+          }
+          break;
+        case 'phone':
+          const phoneRegex = /^[+]?[1-9]?[0-9]{7,15}$/;
+          if (!phoneRegex.test(value.replace(/\s|-|\(|\)/g, ''))) {
+            errors.push({
+              fieldId: field.id,
+              message: 'Please enter a valid phone number'
+            });
+          }
+          break;
+        case 'url':
+          try {
+            new URL(value);
+          } catch {
+            errors.push({
+              fieldId: field.id,
+              message: 'Please enter a valid URL'
+            });
+          }
+          break;
+      }
+    }
+  });
+  
+  return errors;
 };
 
 // Static method to find by public URL
@@ -268,3 +838,8 @@ formSchema.index({ 'analytics.views': -1 });
 formSchema.plugin(mongoosePaginate);
 
 module.exports = mongoose.model('Form', formSchema);
+
+// Export schemas for reuse
+module.exports.formFieldSchema = formFieldSchema;
+module.exports.customizationSchema = customizationSchema;
+module.exports.analyticsSchema = analyticsSchema;
