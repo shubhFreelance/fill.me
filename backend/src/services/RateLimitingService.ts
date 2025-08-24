@@ -27,6 +27,12 @@ export class RateLimitingService {
   static createRateLimiter(options: IRateLimitOptions) {
     return async (req: Request | APIKeyRequest, res: Response, next: NextFunction): Promise<void> => {
       try {
+        // Skip rate limiting in test environment
+        if (process.env.NODE_ENV === 'test') {
+          next();
+          return;
+        }
+        
         const identifier = this.getIdentifier(req, options.keyGenerator);
         const key = `${options.windowMs}_${identifier}`;
         

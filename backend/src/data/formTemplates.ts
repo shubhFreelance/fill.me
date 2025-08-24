@@ -1,110 +1,103 @@
 import { ITemplate } from '../types';
 
-export const predefinedTemplates: Omit<ITemplate, '_id' | 'createdAt' | 'updatedAt'>[] = [
+export const predefinedTemplates: any[] = [
   {
     name: 'Contact Us Form',
     description: 'A simple contact form for customer inquiries',
-    category: 'Contact',
+    category: 'contact',
     tags: ['contact', 'inquiry', 'support'],
-    thumbnail: '/templates/contact-us.png',
-    previewUrl: '/preview/contact-us',
+    thumbnailImage: '/templates/contact-us.png',
     isPublic: true,
     isPremium: false,
-    fields: [
-      {
-        id: 'name',
-        type: 'text',
-        label: 'Full Name',
-        placeholder: 'Enter your full name',
-        required: true,
-        order: 1,
-        conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
-        answerRecall: { enabled: false },
-        calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
-        prefill: { enabled: false },
-        properties: {}
+    isOfficial: true,
+    isActive: true,
+    version: '1.0',
+    formData: {
+      title: 'Contact Us Form',
+      description: 'A simple contact form for customer inquiries',
+      fields: [
+        {
+          id: 'name',
+          type: 'text',
+          label: 'Full Name',
+          placeholder: 'Enter your full name',
+          required: true,
+          order: 1,
+          conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
+          answerRecall: { enabled: false },
+          calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
+          prefill: { enabled: false },
+          properties: {}
+        },
+        {
+          id: 'email',
+          type: 'email',
+          label: 'Email Address',
+          placeholder: 'Enter your email',
+          required: true,
+          order: 2,
+          conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
+          answerRecall: { enabled: false },
+          calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
+          prefill: { enabled: false },
+          properties: {}
+        },
+        {
+          id: 'subject',
+          type: 'dropdown',
+          label: 'Subject',
+          required: true,
+          order: 3,
+          options: ['General Inquiry', 'Technical Support', 'Sales Question', 'Partnership', 'Other'],
+          conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
+          answerRecall: { enabled: false },
+          calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
+          prefill: { enabled: false },
+          properties: {}
+        },
+        {
+          id: 'message',
+          type: 'textarea',
+          label: 'Message',
+          placeholder: 'How can we help you?',
+          required: true,
+          order: 4,
+          conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
+          answerRecall: { enabled: false },
+          calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
+          prefill: { enabled: false },
+          properties: {}
+        }
+      ],
+      customization: {
+        primaryColor: '#3b82f6',
+        fontFamily: 'Inter',
+        backgroundColor: '#ffffff',
+        theme: 'default'
       },
-      {
-        id: 'email',
-        type: 'email',
-        label: 'Email Address',
-        placeholder: 'Enter your email',
-        required: true,
-        order: 2,
-        conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
-        answerRecall: { enabled: false },
-        calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
-        prefill: { enabled: false },
-        properties: {}
-      },
-      {
-        id: 'subject',
-        type: 'dropdown',
-        label: 'Subject',
-        required: true,
-        order: 3,
-        options: ['General Inquiry', 'Technical Support', 'Sales Question', 'Partnership', 'Other'],
-        conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
-        answerRecall: { enabled: false },
-        calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
-        prefill: { enabled: false },
-        properties: {}
-      },
-      {
-        id: 'message',
-        type: 'textarea',
-        label: 'Message',
-        placeholder: 'How can we help you?',
-        required: true,
-        order: 4,
-        conditional: { show: { enabled: false, conditions: [] }, skip: { enabled: false, conditions: [] } },
-        answerRecall: { enabled: false },
-        calculation: { enabled: false, formula: '', dependencies: [], displayType: 'number' },
-        prefill: { enabled: false },
-        properties: {}
+      settings: {
+        showProgressBar: false,
+        allowMultipleSubmissions: true,
+        collectEmail: false,
+        requireLogin: false
       }
-    ],
-    customization: {
-      primaryColor: '#3b82f6',
-      fontFamily: 'Inter',
-      backgroundColor: '#ffffff',
-      theme: 'default'
     },
-    settings: {
-      isMultiStep: false,
-      showProgressBar: false,
-      allowBackNavigation: true,
-      allowMultipleSubmissions: true,
-      requireLogin: false,
-      collectIpAddress: false,
-      collectUserAgent: true,
-      notifications: {
-        email: { enabled: true, recipients: [], subject: 'New Contact Form Submission' },
-        webhook: { enabled: false, url: '', headers: new Map() }
-      },
-      autoSave: { enabled: true, interval: 30 },
-      passwordProtection: { enabled: false },
-      responseLimit: { enabled: false },
-      schedule: { enabled: false },
-      gdpr: { enabled: true, consentText: 'I agree to the privacy policy' }
-    },
-    isTemplate: true,
-    createdBy: null,
+    createdBy: undefined,
     analytics: {
       views: 0,
-      submissions: 0,
-      ratings: [],
+      usageCount: 0,
       averageRating: 0,
+      ratingCount: 0,
       totalRatings: 0
-    }
+    },
+    ratings: []
   },
   {
     name: 'Customer Feedback Survey',
     description: 'Collect valuable feedback from your customers',
-    category: 'Survey',
+    category: 'survey',
     tags: ['feedback', 'survey', 'customer', 'satisfaction'],
-    thumbnail: '/templates/customer-feedback.png',
-    previewUrl: '/preview/customer-feedback',
+    thumbnailImage: '/templates/customer-feedback.png',
     isPublic: true,
     isPremium: false,
     fields: [
@@ -188,22 +181,21 @@ export const predefinedTemplates: Omit<ITemplate, '_id' | 'createdAt' | 'updated
       gdpr: { enabled: true, consentText: 'I consent to data processing' }
     },
     isTemplate: true,
-    createdBy: null,
+    createdBy: undefined,
     analytics: {
       views: 0,
-      submissions: 0,
-      ratings: [],
+      usageCount: 0,
       averageRating: 0,
+      ratingCount: 0,
       totalRatings: 0
     }
   },
   {
     name: 'Job Application Form',
     description: 'Professional job application form for hiring',
-    category: 'HR',
+    category: 'application',
     tags: ['job', 'application', 'hiring', 'hr'],
-    thumbnail: '/templates/job-application.png',
-    previewUrl: '/preview/job-application',
+    thumbnailImage: '/templates/job-application.png',
     isPublic: true,
     isPremium: false,
     fields: [
@@ -334,12 +326,12 @@ export const predefinedTemplates: Omit<ITemplate, '_id' | 'createdAt' | 'updated
       gdpr: { enabled: true, consentText: 'I consent to the processing of my personal data for recruitment purposes' }
     },
     isTemplate: true,
-    createdBy: null,
+    createdBy: undefined,
     analytics: {
       views: 0,
-      submissions: 0,
-      ratings: [],
+      usageCount: 0,
       averageRating: 0,
+      ratingCount: 0,
       totalRatings: 0
     }
   }

@@ -56,7 +56,7 @@ const errorHandler = (
   }
 
   // Multer errors
-  if (err.code === 'LIMIT_FILE_SIZE') {
+  if ((err as any).code === 'LIMIT_FILE_SIZE') {
     const message = 'File size too large';
     error = { name: 'MulterError', message, statusCode: 400 };
   }

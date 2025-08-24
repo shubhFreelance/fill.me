@@ -186,7 +186,7 @@ export class CalculatorService {
       (match, fieldList) => {
         const fieldIds = fieldList.split(',').map((id: string) => id.trim());
         const values = fieldIds.map((fieldId: string) => context[fieldId] || 0);
-        const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        const avg = values.length > 0 ? values.reduce((a: number, b: number) => a + b, 0) / values.length : 0;
         return avg.toString();
       }
     );

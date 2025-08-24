@@ -53,7 +53,7 @@ router.post('/create-customer', protect, async (req: AuthenticatedRequest, res: 
     const user = req.user!;
 
     // Check if customer already exists
-    if (user.stripeCustomerId) {
+    if ((user as any).stripeCustomerId) {
       res.status(400).json({
         success: false,
         message: 'Customer already exists'
@@ -71,7 +71,7 @@ router.post('/create-customer', protect, async (req: AuthenticatedRequest, res: 
     });
 
     // Update user with customer ID
-    user.stripeCustomerId = customer.id;
+    (user as any).stripeCustomerId = customer.id;
     await user.save();
 
     res.status(201).json({
@@ -100,7 +100,7 @@ router.post('/create-subscription', protect, withValidation(validateSubscription
     const user = req.user!;
 
     // Ensure customer exists
-    let customerId = user.stripeCustomerId;
+    let customerId = (user as any).stripeCustomerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -110,7 +110,7 @@ router.post('/create-subscription', protect, withValidation(validateSubscription
         }
       });
       customerId = customer.id;
-      user.stripeCustomerId = customerId;
+      (user as any).stripeCustomerId = customerId;
       await user.save();
     }
 
@@ -139,13 +139,32 @@ router.post('/create-subscription', protect, withValidation(validateSubscription
 
     // Update user subscription status
     const planName = getPlanNameFromPriceId(priceId);
+    // Map plan name to match our type system
+    const planMapping = {
+      'pro': 'professional' as const,
+      'enterprise': 'enterprise' as const,
+      'free': 'free' as const
+    };
+    const mappedPlan = planMapping[planName as keyof typeof planMapping] || 'free';
+    
+    // Map Stripe status to our type system
+    const statusMapping = {
+      'active': 'active' as const,
+      'past_due': 'past_due' as const,
+      'canceled': 'canceled' as const,
+      'trialing': 'trialing' as const,
+      'paused': 'past_due' as const // Map paused to past_due
+    };
+    const mappedStatus = statusMapping[subscription.status as keyof typeof statusMapping] || 'active';
+
     user.subscription = {
-      plan: planName,
-      status: subscription.status,
+      plan: mappedPlan,
+      status: mappedStatus,
       stripeSubscriptionId: subscription.id,
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      features: getDefaultFeatures(mappedPlan)
     };
     await user.save();
 
@@ -190,7 +209,7 @@ router.get('/subscription', protect, async (req: AuthenticatedRequest, res: Resp
     let upcomingInvoice = null;
     try {
       upcomingInvoice = await stripe.invoices.retrieveUpcoming({
-        customer: user.stripeCustomerId!,
+        customer: (user as any).stripeCustomerId!,
       });
     } catch (error) {
       // No upcoming invoice
@@ -360,13 +379,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: e
 
     // Handle the event
     switch (event.type) {
-      case 'subscription.created':
-      case 'subscription.updated':
-        await handleSubscriptionUpdate(event.data.object as Stripe.Subscription);
+      case 'subscription.created' as any:
+      case 'subscription.updated' as any:
+        await handleSubscriptionUpdate((event as any).data.object as Stripe.Subscription);
         break;
       
-      case 'subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+      case 'subscription.deleted' as any:
+        await handleSubscriptionDeleted((event as any).data.object as Stripe.Subscription);
         break;
       
       case 'invoice.payment_succeeded':
@@ -453,14 +472,25 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription): Prom
     const user = await User.findOne({ stripeCustomerId: subscription.customer as string });
     if (!user) return;
 
+    // Map Stripe status to our type system
+    const statusMapping = {
+      'active': 'active' as const,
+      'past_due': 'past_due' as const,
+      'canceled': 'canceled' as const,
+      'trialing': 'trialing' as const,
+      'paused': 'past_due' as const
+    };
+    const mappedStatus = statusMapping[subscription.status as keyof typeof statusMapping] || 'active';
+
     // Update user subscription
     user.subscription = {
-      plan: user.subscription?.plan || 'pro',
-      status: subscription.status,
+      plan: user.subscription?.plan || 'professional',
+      status: mappedStatus,
       stripeSubscriptionId: subscription.id,
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      features: getDefaultFeatures(user.subscription?.plan || 'professional')
     };
 
     await user.save();
@@ -478,10 +508,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
     user.subscription = {
       plan: 'free',
       status: 'canceled',
-      stripeSubscriptionId: null,
+      stripeSubscriptionId: undefined,
       currentPeriodStart: new Date(),
       currentPeriodEnd: new Date(),
-      cancelAtPeriodEnd: false
+      cancelAtPeriodEnd: false,
+      features: getDefaultFeatures('free')
     };
 
     await user.save();
@@ -536,6 +567,61 @@ async function handleFormPaymentSucceeded(paymentIntent: Stripe.PaymentIntent): 
   } catch (error) {
     console.error('Error handling form payment succeeded:', error);
   }
+}
+
+// Helper function to get default features for a plan
+function getDefaultFeatures(plan: 'free' | 'starter' | 'professional' | 'enterprise') {
+  const featuresMap = {
+    free: {
+      maxForms: 3,
+      maxResponses: 100,
+      maxFileStorage: 100,
+      customBranding: false,
+      advancedAnalytics: false,
+      integrations: false,
+      apiAccess: false,
+      customDomains: false,
+      whiteLabeling: false,
+      prioritySupport: false
+    },
+    starter: {
+      maxForms: 10,
+      maxResponses: 1000,
+      maxFileStorage: 500,
+      customBranding: true,
+      advancedAnalytics: false,
+      integrations: false,
+      apiAccess: false,
+      customDomains: false,
+      whiteLabeling: false,
+      prioritySupport: false
+    },
+    professional: {
+      maxForms: 50,
+      maxResponses: 10000,
+      maxFileStorage: 5000,
+      customBranding: true,
+      advancedAnalytics: true,
+      integrations: true,
+      apiAccess: true,
+      customDomains: true,
+      whiteLabeling: false,
+      prioritySupport: true
+    },
+    enterprise: {
+      maxForms: -1,
+      maxResponses: -1,
+      maxFileStorage: -1,
+      customBranding: true,
+      advancedAnalytics: true,
+      integrations: true,
+      apiAccess: true,
+      customDomains: true,
+      whiteLabeling: true,
+      prioritySupport: true
+    }
+  };
+  return featuresMap[plan];
 }
 
 export default router;

@@ -140,9 +140,9 @@ export class TemplateService {
   static async recalculateTemplateRating(templateId: string): Promise<void> {
     try {
       const template = await Template.findById(templateId);
-      if (!template || !template.analytics.ratings.length) return;
+      if (!template || !template.analytics?.ratings?.length) return;
 
-      const totalRating = template.analytics.ratings.reduce((sum, rating) => sum + rating, 0);
+      const totalRating = template.analytics.ratings.reduce((sum: number, rating: number) => sum + rating, 0);
       const averageRating = totalRating / template.analytics.ratings.length;
 
       await Template.findByIdAndUpdate(templateId, {
@@ -174,8 +174,7 @@ export class TemplateService {
         publicTemplates,
         premiumTemplates,
         categoryStats,
-        ratingStats,
-        viewStats
+        ratingStats
       ] = await Promise.all([
         Template.countDocuments({ isTemplate: true }),
         Template.countDocuments({ isTemplate: true, isPublic: true }),

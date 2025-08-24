@@ -1,7 +1,14 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IPartialSubmission } from '../types';
 
-export interface IPartialSubmissionDocument extends IPartialSubmission, Document {}
+export interface IPartialSubmissionDocument extends Omit<IPartialSubmission, '_id'>, Document {
+  timeRemaining: number;
+  isExpired: boolean;
+  timeRemainingHuman: string;
+  updateProgress(formFields: any[]): this;
+  extendExpiration(additionalDays?: number): this;
+  mergeResponses(newResponses: Record<string, any>): this;
+}
 
 const PartialSubmissionSchema: Schema = new Schema({
   formId: {
@@ -259,6 +266,13 @@ PartialSubmissionSchema.pre('deleteOne', { document: true, query: false }, funct
   next();
 });
 
-const PartialSubmission = mongoose.model<IPartialSubmissionDocument>('PartialSubmission', PartialSubmissionSchema);
+export interface IPartialSubmissionModel extends mongoose.Model<IPartialSubmissionDocument> {
+  findByFormAndSession(formId: string, sessionId: string): Promise<IPartialSubmissionDocument | null>;
+  findActiveByForm(formId: string, limit?: number): Promise<IPartialSubmissionDocument[]>;
+  getFormStats(formId: string): Promise<any[]>;
+  cleanupExpired(olderThanDays?: number): Promise<{ deletedCount: number }>;
+}
+
+const PartialSubmission = mongoose.model<IPartialSubmissionDocument, IPartialSubmissionModel>('PartialSubmission', PartialSubmissionSchema);
 
 export default PartialSubmission;

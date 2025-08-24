@@ -314,7 +314,7 @@ export class CustomDomainService {
         details: { records: txtRecords, searchToken: token }
       };
     } catch (error) {
-      return { isVerified: false, details: { error: error.message } };
+      return { isVerified: false, details: { error: error instanceof Error ? error.message : String(error) } };
     }
   }
 
@@ -335,7 +335,7 @@ export class CustomDomainService {
         details: { records: cnameRecords, subdomain: verifySubdomain }
       };
     } catch (error) {
-      return { isVerified: false, details: { error: error.message } };
+      return { isVerified: false, details: { error: error instanceof Error ? error.message : String(error) } };
     }
   }
 
@@ -370,7 +370,7 @@ export class CustomDomainService {
       } catch (httpsError) {
         return { 
           isVerified: false, 
-          details: { error: `HTTP/HTTPS verification failed: ${error.message}` }
+          details: { error: `HTTP/HTTPS verification failed: ${error instanceof Error ? error.message : String(error)}` }
         };
       }
     }

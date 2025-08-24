@@ -1,0 +1,915 @@
+openapi: 3.0.3
+info:
+  title: Fill.me API
+  description: |
+    Fill.me provides a comprehensive REST API for form creation, management, and analytics. 
+    This API enables developers to integrate form functionality into their applications and manage form data programmatically.
+    
+    ## Authentication
+    
+    Fill.me API supports multiple authentication methods:
+    - **JWT Token**: `Authorization: Bearer YOUR_JWT_TOKEN`
+    - **API Key**: `X-API-Key: YOUR_API_KEY`
+    - **Basic Auth**: `Authorization: Basic base64(email:password)`
+    
+    ## Rate Limiting
+    
+    Rate limits vary by subscription plan:
+    - Free: 100 requests/hour
+    - Starter: 500 requests/hour
+    - Professional: 2,000 requests/hour
+    - Enterprise: 10,000 requests/hour
+    
+  version: 1.3.0
+  contact:
+    name: Fill.me Support
+    email: support@fill.me
+    url: https://fill.me/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.fill.me
+    description: Production server
+  - url: http://localhost:3001/api
+    description: Development server
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+  - BasicAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BasicAuth:
+      type: http
+      scheme: basic
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "user_123"
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        role:
+          type: string
+          enum: [user, admin, moderator]
+          example: "user"
+        subscription:
+          type: object
+          properties:
+            plan:
+              type: string
+              enum: [free, starter, professional, enterprise]
+            status:
+              type: string
+              enum: [active, cancelled, expired]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Form:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "form_123"
+        title:
+          type: string
+          example: "Contact Form"
+        description:
+          type: string
+          example: "Get in touch with us"
+        status:
+          type: string
+          enum: [draft, active, archived]
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormField'
+        settings:
+          type: object
+          properties:
+            allowMultiple:
+              type: boolean
+            requireAuth:
+              type: boolean
+            collectIP:
+              type: boolean
+        customization:
+          type: object
+          properties:
+            theme:
+              type: string
+            colors:
+              type: object
+              properties:
+                primary:
+                  type: string
+                background:
+                  type: string
+        analytics:
+          type: object
+          properties:
+            views:
+              type: integer
+            submissions:
+              type: integer
+            conversionRate:
+              type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FormField:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "field_1"
+        type:
+          type: string
+          enum: [text, email, number, textarea, dropdown, radio, checkbox, date, file]
+        label:
+          type: string
+          example: "Full Name"
+        placeholder:
+          type: string
+          example: "Enter your name"
+        required:
+          type: boolean
+        order:
+          type: integer
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+        validation:
+          type: object
+          properties:
+            minLength:
+              type: integer
+            maxLength:
+              type: integer
+            pattern:
+              type: string
+        conditional:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            conditions:
+              type: array
+              items:
+                type: object
+
+    FormResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "response_123"
+        formId:
+          type: string
+          example: "form_123"
+        data:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          properties:
+            ip:
+              type: string
+            userAgent:
+              type: string
+            location:
+              type: object
+        submittedAt:
+          type: string
+          format: date-time
+
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "workspace_123"
+        name:
+          type: string
+          example: "Marketing Team"
+        description:
+          type: string
+        owner:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              userId:
+                type: string
+              role:
+                type: string
+                enum: [viewer, editor, admin]
+              joinedAt:
+                type: string
+                format: date-time
+        settings:
+          type: object
+          properties:
+            isPublic:
+              type: boolean
+            allowInvitations:
+              type: boolean
+            defaultRole:
+              type: string
+        stats:
+          type: object
+          properties:
+            totalForms:
+              type: integer
+            totalMembers:
+              type: integer
+            totalResponses:
+              type: integer
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormField'
+        featured:
+          type: boolean
+        usage:
+          type: integer
+
+    Integration:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [webhook, slack, google_sheets, mailchimp, zapier]
+        name:
+          type: string
+        formId:
+          type: string
+        config:
+          type: object
+        status:
+          type: string
+          enum: [active, inactive, error]
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        key:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        rateLimit:
+          type: object
+          properties:
+            requestsPerMinute:
+              type: integer
+            requestsPerHour:
+              type: integer
+            requestsPerDay:
+              type: integer
+        lastUsed:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+
+    PaginationResponse:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        pages:
+          type: integer
+
+paths:
+  # Authentication
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      token:
+                        type: string
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      token:
+                        type: string
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Forms
+  /forms:
+    get:
+      tags: [Forms]
+      summary: List forms
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, draft, archived]
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Forms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      forms:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Form'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationResponse'
+
+    post:
+      tags: [Forms]
+      summary: Create a new form
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, fields]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                fields:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FormField'
+                settings:
+                  type: object
+                customization:
+                  type: object
+                workspaceId:
+                  type: string
+      responses:
+        '201':
+          description: Form created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Form'
+
+  /forms/{formId}:
+    get:
+      tags: [Forms]
+      summary: Get form by ID
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Form retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Form'
+        '404':
+          description: Form not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags: [Forms]
+      summary: Update form
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                fields:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/FormField'
+                settings:
+                  type: object
+                customization:
+                  type: object
+      responses:
+        '200':
+          description: Form updated successfully
+
+    delete:
+      tags: [Forms]
+      summary: Delete form
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Form deleted successfully
+
+  /forms/{formId}/responses:
+    get:
+      tags: [Responses]
+      summary: Get form responses
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Responses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      responses:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FormResponse'
+                      pagination:
+                        $ref: '#/components/schemas/PaginationResponse'
+
+  /public/forms/{formId}/submit:
+    post:
+      tags: [Public]
+      summary: Submit form response (public endpoint)
+      security: []
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              properties:
+                data:
+                  type: object
+                  additionalProperties: true
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Response submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      message:
+                        type: string
+
+  # Workspaces
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      summary: List workspaces
+      responses:
+        '200':
+          description: Workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+
+    post:
+      tags: [Workspaces]
+      summary: Create workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                settings:
+                  type: object
+      responses:
+        '201':
+          description: Workspace created successfully
+
+  /workspaces/{workspaceId}/invite:
+    post:
+      tags: [Workspaces]
+      summary: Invite member to workspace
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [viewer, editor, admin]
+      responses:
+        '201':
+          description: Invitation sent successfully
+
+  # Analytics
+  /forms/{formId}/analytics:
+    get:
+      tags: [Analytics]
+      summary: Get form analytics
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: timeRange
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, 1y]
+            default: 30d
+        - name: metrics
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      overview:
+                        type: object
+                        properties:
+                          totalViews:
+                            type: integer
+                          totalSubmissions:
+                            type: integer
+                          conversionRate:
+                            type: number
+                          averageTime:
+                            type: integer
+                      timeline:
+                        type: array
+                        items:
+                          type: object
+                      devices:
+                        type: object
+                      locations:
+                        type: array
+
+  # Templates
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List templates
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Template'
+
+  # API Keys
+  /api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys
+      responses:
+        '200':
+          description: API keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+
+    post:
+      tags: [API Keys]
+      summary: Create API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                rateLimit:
+                  type: object
+      responses:
+        '201':
+          description: API key created successfully
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Forms
+    description: Form management operations
+  - name: Responses
+    description: Form response operations
+  - name: Workspaces
+    description: Workspace and collaboration features
+  - name: Templates
+    description: Form template operations
+  - name: Analytics
+    description: Analytics and reporting
+  - name: Integrations
+    description: Third-party integrations
+  - name: API Keys
+    description: API key management
+  - name: Public
+    description: Public endpoints (no authentication required)

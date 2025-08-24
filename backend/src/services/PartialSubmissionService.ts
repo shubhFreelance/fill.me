@@ -224,13 +224,14 @@ export class PartialSubmissionService {
           sessionId: partialSubmission.sessionId,
           createdAt: partialSubmission.createdAt,
           saveCount: partialSubmission.metadata.saveCount || 0,
-          totalTimeSpent: finalSubmission.metadata.totalTimeSpent
+          totalTimeSpent: partialSubmission.metadata.timeSpent || 0
         }
       };
     } catch (error) {
       console.error('Error completing partial submission:', error);
       return {
         success: false,
+        wasPartialSubmission: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     }

@@ -75,7 +75,6 @@ export const getAdminPermissions = (req: AuthenticatedRequest): AdminPermissions
   const role = user.role;
 
   switch (role) {
-    case 'superuser':
     case 'super_admin':
       return {
         canViewMetrics: true,
@@ -95,17 +94,6 @@ export const getAdminPermissions = (req: AuthenticatedRequest): AdminPermissions
         canViewLogs: true,
         canPerformMaintenance: false,
         canExportData: true,
-        canManageSystem: false
-      };
-
-    case 'moderator':
-      return {
-        canViewMetrics: true,
-        canManageUsers: false,
-        canManageForms: true,
-        canViewLogs: false,
-        canPerformMaintenance: false,
-        canExportData: false,
         canManageSystem: false
       };
 
@@ -248,8 +236,7 @@ export const requireSuperuser = async (
     }
 
     const user = req.user;
-    const isSuperuser = user.role === 'superuser' || 
-                       user.role === 'super_admin' ||
+    const isSuperuser = user.role === 'super_admin' ||
                        user.email === process.env.ADMIN_EMAIL ||
                        (process.env.SUPERUSER_EMAILS?.split(',') || []).includes(user.email);
 

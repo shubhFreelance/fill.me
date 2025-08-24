@@ -80,7 +80,7 @@ export class GDPRComplianceService {
         consentTimestamp: new Date(),
         ipAddress: revocationData.ipAddress,
         userAgent: revocationData.userAgent,
-        consentMethod: revocationData.revocationMethod,
+        consentMethod: this.mapRevocationMethodToConsentMethod(revocationData.revocationMethod),
         optInDetails: {
           explicitConsent: false,
           consentText: 'Consent revoked',
@@ -311,7 +311,7 @@ export class GDPRComplianceService {
           address: process.env.DATA_CONTROLLER_ADDRESS || 'Not specified'
         },
         processingPurpose: this.determineProcessingPurpose(form),
-        legalBasis: form.settings?.gdpr?.legalBasis || 'consent',
+        legalBasis: 'consent', // Default legal basis
         dataCategories: this.extractDataCategories(form.fields),
         dataSubjects: ['form_respondents'],
         recipients: this.determineRecipients(form),
@@ -429,7 +429,7 @@ export class GDPRComplianceService {
     return {
       profile: {
         email: user?.email,
-        name: user?.name,
+        name: user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email || 'Unknown',
         createdAt: user?.createdAt,
         lastLogin: user?.lastLogin
       },
@@ -746,6 +746,20 @@ export class GDPRComplianceService {
     return results
       .filter(r => !r.compliant)
       .map(r => r.recommendation);
+  }
+
+  /**
+   * Map revocation method to valid consent method
+   */
+  private static mapRevocationMethodToConsentMethod(revocationMethod: string): 'checkbox' | 'button_click' | 'form_submission' | 'email_confirmation' {
+    const mapping: Record<string, 'checkbox' | 'button_click' | 'form_submission' | 'email_confirmation'> = {
+      'button_click': 'button_click',
+      'email_request': 'email_confirmation',
+      'phone_request': 'form_submission',
+      'written_request': 'form_submission'
+    };
+    
+    return mapping[revocationMethod] || 'form_submission';
   }
 }
 

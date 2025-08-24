@@ -1,5 +1,6 @@
 import express, { Response } from 'express';
 import mongoose from 'mongoose';
+// @ts-ignore - json2csv doesn't have TypeScript definitions
 import { Parser } from 'json2csv';
 import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
@@ -105,7 +106,7 @@ router.get('/forms/:formId/export', protect, async (req: AuthenticatedRequest, r
       _id: req.params.formId,
       userId: req.user!._id,
       isActive: true
-    }).lean() as IForm;
+    }).lean() as unknown as IForm;
 
     if (!form) {
       res.status(404).json({

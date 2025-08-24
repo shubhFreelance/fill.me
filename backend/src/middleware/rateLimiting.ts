@@ -36,10 +36,10 @@ export const apiRateLimit = (req: AuthenticatedRequest, res: Response, next: Nex
   
   // Different limits based on subscription plan
   const planLimits = {
-    free: { windowMs: 60 * 60 * 1000, maxRequests: 100 }, // 100/hour
-    starter: { windowMs: 60 * 60 * 1000, maxRequests: 500 }, // 500/hour
-    professional: { windowMs: 60 * 60 * 1000, maxRequests: 2000 }, // 2000/hour
-    enterprise: { windowMs: 60 * 60 * 1000, maxRequests: 10000 } // 10000/hour
+    free: { windowMs: 60 * 60 * 1000, max: 100 }, // 100/hour
+    starter: { windowMs: 60 * 60 * 1000, max: 500 }, // 500/hour
+    professional: { windowMs: 60 * 60 * 1000, max: 2000 }, // 2000/hour
+    enterprise: { windowMs: 60 * 60 * 1000, max: 10000 } // 10000/hour
   };
   
   const limits = planLimits[plan as keyof typeof planLimits] || planLimits.free;

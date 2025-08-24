@@ -1,4 +1,4 @@
-import { IFormField, IFormCustomization, IFormSettings } from '../types';
+import { IFormField, IFormCustomization, IFormSettings, FormFieldType } from '../types';
 
 /**
  * Typeform Import Service
@@ -78,8 +78,8 @@ export class TypeformImportService {
    * @param typeformType - Typeform field type
    * @returns Our field type
    */
-  static mapTypeformFieldType(typeformType: string): string {
-    const typeMapping: { [key: string]: string } = {
+  static mapTypeformFieldType(typeformType: string): FormFieldType {
+    const typeMapping: { [key: string]: FormFieldType } = {
       'short_text': 'text',
       'long_text': 'textarea',
       'multiple_choice': 'radio',
@@ -214,7 +214,7 @@ export class TypeformImportService {
       passwordProtection: { enabled: false },
       responseLimit: { enabled: false },
       schedule: { enabled: false },
-      gdpr: { enabled: false }
+      gdpr: { enabled: false, dataRetentionDays: 365 }
     };
   }
 

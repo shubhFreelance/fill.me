@@ -43,28 +43,45 @@ export class APIKeyService {
       // Hash the key for secure storage
       const hashedKey = await bcrypt.hash(apiKey, 12);
 
-      // Create API key object
-      const newAPIKey: IAPIKey = {
-        id: crypto.randomUUID(),
+      // Create API key object matching IApiKey interface from User model
+      const newAPIKey: any = {
         name: keyData.name,
-        keyType: keyData.keyType,
+        key: apiKey, // Store full key for hashing verification
         hashedKey,
-        keyPreview: `${keyPrefix}_${'*'.repeat(32)}${keySecret.slice(-4)}`,
-        permissions: keyData.permissions || this.getDefaultPermissions(keyData.keyType),
-        scopes: keyData.scopes || [],
-        rateLimit: keyData.rateLimit || this.getDefaultRateLimit(keyData.keyType),
-        restrictions: keyData.restrictions || {},
+        permissions: {
+          forms: {
+            read: keyData.keyType !== 'webhook',
+            write: ['read_write', 'admin'].includes(keyData.keyType),
+            delete: keyData.keyType === 'admin'
+          },
+          responses: {
+            read: keyData.keyType !== 'webhook',
+            write: ['read_write', 'admin', 'webhook', 'public'].includes(keyData.keyType),
+            delete: keyData.keyType === 'admin'
+          },
+          analytics: {
+            read: ['read_only', 'read_write', 'admin'].includes(keyData.keyType)
+          },
+          integrations: {
+            read: keyData.keyType === 'admin',
+            write: keyData.keyType === 'admin',
+            delete: keyData.keyType === 'admin'
+          }
+        },
+        rateLimit: {
+          requestsPerMinute: this.getDefaultRateLimit(keyData.keyType).requestsPerMinute,
+          requestsPerHour: this.getDefaultRateLimit(keyData.keyType).requestsPerHour,
+          requestsPerDay: this.getDefaultRateLimit(keyData.keyType).requestsPerDay
+        },
         isActive: true,
-        lastUsedAt: null,
-        usageCount: 0,
-        createdAt: new Date(),
-        expiresAt: keyData.expiresAt || this.calculateDefaultExpiry(keyData.keyType),
-        metadata: {
-          createdBy: userId,
-          createdFrom: keyData.createdFrom || 'dashboard',
-          userAgent: keyData.userAgent,
-          ipAddress: keyData.ipAddress
-        }
+        lastUsed: undefined,
+        usageStats: {
+          totalRequests: 0,
+          lastRequestAt: undefined,
+          lastRequestIp: undefined
+        },
+        expiresAt: keyData.expiresAt,
+        createdAt: new Date()
       };
 
       // Add to user's API keys
@@ -78,15 +95,21 @@ export class APIKeyService {
       return {
         success: true,
         apiKey: {
-          id: newAPIKey.id,
+          id: newAPIKey.name, // Using name as id
           name: newAPIKey.name,
-          keyType: newAPIKey.keyType,
+          keyType: keyData.keyType,
           key: apiKey, // Full key only shown once
-          keyPreview: newAPIKey.keyPreview,
-          permissions: newAPIKey.permissions,
-          scopes: newAPIKey.scopes,
+          keyPreview: `${keyPrefix}_${'*'.repeat(32)}${keySecret.slice(-4)}`,
+          permissions: {
+            forms: { read: newAPIKey.permissions.forms.read, create: newAPIKey.permissions.forms.write, update: newAPIKey.permissions.forms.write, delete: newAPIKey.permissions.forms.delete },
+            responses: { read: newAPIKey.permissions.responses.read, create: newAPIKey.permissions.responses.write, update: newAPIKey.permissions.responses.write, delete: newAPIKey.permissions.responses.delete },
+            analytics: { read: newAPIKey.permissions.analytics.read, create: false, update: false, delete: false },
+            webhooks: { read: newAPIKey.permissions.integrations.read, create: newAPIKey.permissions.integrations.write, update: newAPIKey.permissions.integrations.write, delete: newAPIKey.permissions.integrations.delete },
+            users: { read: false, create: false, update: false, delete: false }
+          },
+          scopes: [],
           rateLimit: newAPIKey.rateLimit,
-          restrictions: newAPIKey.restrictions,
+          restrictions: { allowedIPs: [], allowedDomains: [], allowedFormIds: [], deniedEndpoints: [] },
           isActive: newAPIKey.isActive,
           createdAt: newAPIKey.createdAt,
           expiresAt: newAPIKey.expiresAt
@@ -126,17 +149,16 @@ export class APIKeyService {
         return { isValid: false, error: 'Invalid API key prefix' };
       }
 
-      // Find user with matching API key
+      // Find user with matching API key  
       const users = await User.find({
-        'apiKeys.isActive': true,
-        'apiKeys.keyType': keyType
+        'apiKeys.isActive': true
       }).select('apiKeys email name subscription');
 
       for (const user of users) {
         if (!user.apiKeys) continue;
 
         for (const storedKey of user.apiKeys) {
-          if (!storedKey.isActive || storedKey.keyType !== keyType) continue;
+          if (!storedKey.isActive) continue;
 
           // Check if key matches
           const isMatch = await bcrypt.compare(apiKey, storedKey.hashedKey);
@@ -148,24 +170,30 @@ export class APIKeyService {
           }
 
           // Update usage statistics
-          await this.updateKeyUsage(user._id.toString(), storedKey.id);
+          await this.updateKeyUsage(user._id.toString(), storedKey.name);
 
           return {
             isValid: true,
             user: {
               id: user._id.toString(),
               email: user.email,
-              name: user.name,
+              name: (user as any).name || user.email, // User model might not have name
               plan: user.subscription?.plan || 'free'
             },
             apiKey: {
-              id: storedKey.id,
+              id: storedKey.name,
               name: storedKey.name,
-              keyType: storedKey.keyType,
-              permissions: storedKey.permissions,
-              scopes: storedKey.scopes,
+              keyType: 'read_only' as IAPIKeyType, // Default since IApiKey doesn't store keyType
+              permissions: {
+                forms: { read: storedKey.permissions.forms.read, create: storedKey.permissions.forms.write, update: storedKey.permissions.forms.write, delete: storedKey.permissions.forms.delete },
+                responses: { read: storedKey.permissions.responses.read, create: storedKey.permissions.responses.write, update: storedKey.permissions.responses.write, delete: storedKey.permissions.responses.delete },
+                analytics: { read: storedKey.permissions.analytics.read, create: false, update: false, delete: false },
+                webhooks: { read: storedKey.permissions.integrations.read, create: storedKey.permissions.integrations.write, update: storedKey.permissions.integrations.write, delete: storedKey.permissions.integrations.delete },
+                users: { read: false, create: false, update: false, delete: false }
+              },
+              scopes: [],
               rateLimit: storedKey.rateLimit,
-              restrictions: storedKey.restrictions
+              restrictions: { allowedIPs: [], allowedDomains: [], allowedFormIds: [], deniedEndpoints: [] }
             }
           };
         }
@@ -191,19 +219,25 @@ export class APIKeyService {
       }
 
       const apiKeys = (user.apiKeys || []).map(key => ({
-        id: key.id,
+        id: key.name, // Using name as ID since IApiKey doesn't have id
         name: key.name,
-        keyType: key.keyType,
-        keyPreview: key.keyPreview,
-        permissions: key.permissions,
-        scopes: key.scopes,
+        keyType: 'read_only' as IAPIKeyType, // Default type since IApiKey doesn't have keyType
+        keyPreview: key.key.substring(0, 8) + '...', // Generate preview from key
+        permissions: {
+          forms: { read: key.permissions.forms.read, create: key.permissions.forms.write, update: key.permissions.forms.write, delete: key.permissions.forms.delete },
+          responses: { read: key.permissions.responses.read, create: key.permissions.responses.write, update: key.permissions.responses.write, delete: key.permissions.responses.delete },
+          analytics: { read: key.permissions.analytics.read, create: false, update: false, delete: false },
+          webhooks: { read: key.permissions.integrations.read, create: key.permissions.integrations.write, update: key.permissions.integrations.write, delete: key.permissions.integrations.delete },
+          users: { read: false, create: false, update: false, delete: false }
+        },
+        scopes: [], // IApiKey doesn't have scopes
         rateLimit: key.rateLimit,
-        restrictions: key.restrictions,
+        restrictions: { allowedIPs: [], allowedDomains: [], allowedFormIds: [], deniedEndpoints: [] }, // Default restrictions
         isActive: key.isActive,
-        lastUsedAt: key.lastUsedAt,
-        usageCount: key.usageCount,
+        lastUsedAt: key.lastUsed || null,
+        usageCount: key.usageStats.totalRequests,
         createdAt: key.createdAt,
-        expiresAt: key.expiresAt
+        expiresAt: key.expiresAt || null
       }));
 
       const activeKeys = apiKeys.filter(key => key.isActive);
@@ -238,14 +272,15 @@ export class APIKeyService {
         throw new Error('User or API keys not found');
       }
 
-      const keyIndex = user.apiKeys.findIndex(key => key.id === keyId);
+      const keyIndex = user.apiKeys.findIndex(key => key.name === keyId);
       if (keyIndex === -1) {
         throw new Error('API key not found');
       }
 
       // Deactivate the key
       user.apiKeys[keyIndex].isActive = false;
-      user.apiKeys[keyIndex].revokedAt = new Date();
+      // Note: IApiKey doesn't have revokedAt property
+      // user.apiKeys[keyIndex].revokedAt = new Date();
       
       await user.save();
 
@@ -277,7 +312,7 @@ export class APIKeyService {
         throw new Error('User or API keys not found');
       }
 
-      const keyIndex = user.apiKeys.findIndex(key => key.id === keyId);
+      const keyIndex = user.apiKeys.findIndex(key => key.name === keyId);
       if (keyIndex === -1) {
         throw new Error('API key not found');
       }
@@ -286,10 +321,34 @@ export class APIKeyService {
 
       // Update allowed fields
       if (updates.name !== undefined) apiKey.name = updates.name;
-      if (updates.permissions !== undefined) apiKey.permissions = updates.permissions;
-      if (updates.scopes !== undefined) apiKey.scopes = updates.scopes;
+      if (updates.permissions !== undefined) {
+        // Convert IAPIKeyPermissions to IApiPermissions
+        apiKey.permissions = {
+          forms: {
+            read: updates.permissions.forms.read,
+            write: updates.permissions.forms.create || updates.permissions.forms.update,
+            delete: updates.permissions.forms.delete
+          },
+          responses: {
+            read: updates.permissions.responses.read,
+            write: updates.permissions.responses.create || updates.permissions.responses.update,
+            delete: updates.permissions.responses.delete
+          },
+          analytics: {
+            read: updates.permissions.analytics.read
+          },
+          integrations: {
+            read: updates.permissions.webhooks.read,
+            write: updates.permissions.webhooks.create || updates.permissions.webhooks.update,
+            delete: updates.permissions.webhooks.delete
+          }
+        };
+      }
+      // Note: IApiKey doesn't have scopes property
+      // if (updates.scopes !== undefined) apiKey.scopes = updates.scopes;
       if (updates.rateLimit !== undefined) apiKey.rateLimit = updates.rateLimit;
-      if (updates.restrictions !== undefined) apiKey.restrictions = updates.restrictions;
+      // Note: IApiKey doesn't have restrictions property
+      // if (updates.restrictions !== undefined) apiKey.restrictions = updates.restrictions;
       if (updates.expiresAt !== undefined) apiKey.expiresAt = updates.expiresAt;
 
       await user.save();
@@ -297,17 +356,23 @@ export class APIKeyService {
       return {
         success: true,
         apiKey: {
-          id: apiKey.id,
+          id: apiKey.name,
           name: apiKey.name,
-          keyType: apiKey.keyType,
-          keyPreview: apiKey.keyPreview,
-          permissions: apiKey.permissions,
-          scopes: apiKey.scopes,
+          keyType: 'read_only' as IAPIKeyType,
+          keyPreview: apiKey.key.substring(0, 8) + '...',
+          permissions: {
+            forms: { read: apiKey.permissions.forms.read, create: apiKey.permissions.forms.write, update: apiKey.permissions.forms.write, delete: apiKey.permissions.forms.delete },
+            responses: { read: apiKey.permissions.responses.read, create: apiKey.permissions.responses.write, update: apiKey.permissions.responses.write, delete: apiKey.permissions.responses.delete },
+            analytics: { read: apiKey.permissions.analytics.read, create: false, update: false, delete: false },
+            webhooks: { read: apiKey.permissions.integrations.read, create: apiKey.permissions.integrations.write, update: apiKey.permissions.integrations.write, delete: apiKey.permissions.integrations.delete },
+            users: { read: false, create: false, update: false, delete: false }
+          },
+          scopes: [],
           rateLimit: apiKey.rateLimit,
-          restrictions: apiKey.restrictions,
+          restrictions: { allowedIPs: [], allowedDomains: [], allowedFormIds: [], deniedEndpoints: [] },
           isActive: apiKey.isActive,
-          lastUsedAt: apiKey.lastUsedAt,
-          usageCount: apiKey.usageCount,
+          lastUsed: apiKey.lastUsed,
+          usageCount: apiKey.usageStats?.totalRequests || 0,
           createdAt: apiKey.createdAt,
           expiresAt: apiKey.expiresAt
         }
@@ -333,7 +398,7 @@ export class APIKeyService {
 
       let targetKeys = user.apiKeys;
       if (keyId) {
-        targetKeys = user.apiKeys.filter(key => key.id === keyId);
+        targetKeys = user.apiKeys.filter(key => key.name === keyId); // Using name as identifier
         if (targetKeys.length === 0) {
           throw new Error('API key not found');
         }
@@ -344,9 +409,9 @@ export class APIKeyService {
 
       const stats = targetKeys.reduce((acc, key) => {
         return {
-          totalUsage: acc.totalUsage + key.usageCount,
+          totalUsage: acc.totalUsage + (key.usageStats?.totalRequests || 0),
           activeKeys: acc.activeKeys + (key.isActive ? 1 : 0),
-          recentUsage: acc.recentUsage + (key.lastUsedAt && key.lastUsedAt > last30Days ? key.usageCount : 0),
+          recentUsage: acc.recentUsage + (key.lastUsed && key.lastUsed > last30Days ? (key.usageStats?.totalRequests || 0) : 0),
           expiredKeys: acc.expiredKeys + (key.expiresAt && key.expiresAt < now ? 1 : 0)
         };
       }, {
@@ -360,11 +425,11 @@ export class APIKeyService {
         ...stats,
         totalKeys: targetKeys.length,
         keyBreakdown: targetKeys.map(key => ({
-          id: key.id,
+          id: key.name, // Using name as identifier
           name: key.name,
-          keyType: key.keyType,
-          usageCount: key.usageCount,
-          lastUsedAt: key.lastUsedAt,
+          keyType: 'read_only' as IAPIKeyType, // Default type since keyType doesn't exist in IApiKey
+          usageCount: key.usageStats?.totalRequests || 0,
+          lastUsedAt: key.lastUsed || null,
           isActive: key.isActive,
           isExpired: key.expiresAt ? key.expiresAt < now : false
         }))
@@ -399,7 +464,7 @@ export class APIKeyService {
       'fmwh': 'webhook',
       'fmpb': 'public'
     };
-    return typeMap[prefix as keyof typeof typeMap] || null;
+    return (typeMap[prefix as keyof typeof typeMap] as IAPIKeyType) || null;
   }
 
   private static getDefaultPermissions(keyType: IAPIKeyType): IAPIKeyPermissions {

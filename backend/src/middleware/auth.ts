@@ -13,7 +13,8 @@ export interface AuthenticatedRequest extends Request {
 
 // JWT payload interface
 interface JwtPayload {
-  id: string;
+  id?: string;
+  userId?: string;
   iat: number;
   exp: number;
 }
@@ -32,7 +33,8 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
 
       // Get user from token
-      const user = await User.findById(decoded.id).select('-password');
+      const userId = decoded.id || decoded.userId;
+      const user = await User.findById(userId).select('-password');
 
       if (!user) {
         res.status(401).json({
@@ -74,7 +76,7 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   if (!token) {
     res.status(401).json({
       success: false,
-      message: 'Not authorized, no token provided'
+      message: 'No token provided'
     });
     return;
   }
@@ -88,7 +90,8 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
     try {
       token = req.headers.authorization.split(' ')[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-      const user = await User.findById(decoded.id).select('-password');
+      const userId = decoded.id || decoded.userId;
+      const user = await User.findById(userId).select('-password');
       req.user = user as IUser;
     } catch (error) {
       // Continue without user if token is invalid
@@ -101,8 +104,8 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
 
 // Generate JWT token
 export const generateToken = (id: string): string => {
-  return jwt.sign({ id }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  return jwt.sign({ id, userId: id }, process.env.JWT_SECRET!, {
+    expiresIn: '7d',
   });
 };
 

@@ -33,7 +33,7 @@ router.post('/add', protect, withValidation(validateDomain), async (req: Authent
     const { domain, formId } = req.body;
 
     // Check subscription limits
-    if (req.user!.subscription?.plan !== 'pro' && req.user!.subscription?.plan !== 'enterprise') {
+    if (req.user!.subscription?.plan !== 'professional' && req.user!.subscription?.plan !== 'enterprise') {
       res.status(403).json({
         success: false,
         message: 'Custom domains require Pro or Enterprise subscription'
@@ -89,10 +89,10 @@ router.post('/add', protect, withValidation(validateDomain), async (req: Authent
     };
 
     // Add to user's custom domains (assuming we extend User model)
-    if (!req.user!.customDomains) {
-      req.user!.customDomains = [];
+    if (!(req.user as any).customDomains) {
+      (req.user as any).customDomains = [];
     }
-    req.user!.customDomains.push(domainConfig as any);
+    (req.user as any).customDomains.push(domainConfig as any);
     await req.user!.save();
 
     // Generate verification instructions
@@ -135,7 +135,7 @@ router.post('/verify', protect, async (req: AuthenticatedRequest, res: Response)
     }
 
     // Find domain in user's custom domains
-    const domainConfig = req.user!.customDomains?.find(d => d.domain === domain);
+    const domainConfig = (req.user as any).customDomains?.find((d: any) => d.domain === domain);
     if (!domainConfig) {
       res.status(404).json({
         success: false,
@@ -197,11 +197,11 @@ router.post('/verify', protect, async (req: AuthenticatedRequest, res: Response)
  */
 router.get('/', protect, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const domains = req.user!.customDomains || [];
+    const domains = (req.user as any).customDomains || [];
 
     // Populate form information
     const populatedDomains = await Promise.all(
-      domains.map(async (domain) => {
+      domains.map(async (domain: any) => {
         const form = await Form.findById(domain.formId).select('title description');
         return {
           ...domain,
@@ -234,8 +234,8 @@ router.delete('/:domain', protect, async (req: AuthenticatedRequest, res: Respon
     const { domain } = req.params;
 
     // Remove domain from user's custom domains
-    if (req.user!.customDomains) {
-      req.user!.customDomains = req.user!.customDomains.filter(d => d.domain !== domain);
+    if ((req.user as any).customDomains) {
+      (req.user as any).customDomains = (req.user as any).customDomains.filter((d: any) => d.domain !== domain);
       await req.user!.save();
     }
 
@@ -262,7 +262,7 @@ router.get('/:domain/config', protect, async (req: AuthenticatedRequest, res: Re
     const { domain } = req.params;
 
     // Find domain in user's custom domains
-    const domainConfig = req.user!.customDomains?.find(d => d.domain === domain);
+    const domainConfig = (req.user as any).customDomains?.find((d: any) => d.domain === domain);
     if (!domainConfig) {
       res.status(404).json({
         success: false,
@@ -305,7 +305,7 @@ router.post('/:domain/ssl-check', protect, async (req: AuthenticatedRequest, res
     const { domain } = req.params;
 
     // Verify domain ownership
-    const domainConfig = req.user!.customDomains?.find(d => d.domain === domain);
+    const domainConfig = (req.user as any).customDomains?.find((d: any) => d.domain === domain);
     if (!domainConfig) {
       res.status(404).json({
         success: false,

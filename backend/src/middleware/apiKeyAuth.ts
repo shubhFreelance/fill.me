@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import APIKeyService from '../services/APIKeyService';
-import { IAPIKeyValidation } from '../services/APIKeyService';
+import { IAPIKeyValidation, IAPIKeyType, IAPIKeyPermissions, IAPIKeyRateLimit, IAPIKeyRestrictions } from '../services/APIKeyService';
 
 // Extend the Request interface to include API key data
-export interface APIKeyRequest extends Request {
+export interface APIKeyRequest extends Omit<Request, 'apiKey'> {
   apiKeyUser?: {
     id: string;
     email: string;
@@ -13,11 +13,11 @@ export interface APIKeyRequest extends Request {
   apiKey?: {
     id: string;
     name: string;
-    keyType: string;
-    permissions: any;
+    keyType: IAPIKeyType;
+    permissions: IAPIKeyPermissions;
     scopes: string[];
-    rateLimit: any;
-    restrictions: any;
+    rateLimit: IAPIKeyRateLimit;
+    restrictions: IAPIKeyRestrictions;
   };
 }
 
@@ -217,7 +217,7 @@ export const checkDomainRestrictions = (req: APIKeyRequest, res: Response, next:
     }
 
     const requestDomain = new URL(origin).hostname;
-    const isAllowed = allowedDomains.some(domain => {
+    const isAllowed = allowedDomains.some((domain: string) => {
       // Support wildcard domains like *.example.com
       if (domain.startsWith('*.')) {
         const wildcardDomain = domain.substring(2);
@@ -290,7 +290,7 @@ export const checkEndpointRestrictions = (req: APIKeyRequest, res: Response, nex
     const currentEndpoint = req.path;
     const deniedEndpoints = req.apiKey.restrictions.deniedEndpoints;
 
-    const isDenied = deniedEndpoints.some(deniedPath => {
+    const isDenied = deniedEndpoints.some((deniedPath: string) => {
       // Support wildcard patterns
       if (deniedPath.includes('*')) {
         const pattern = deniedPath.replace(/\*/g, '.*');

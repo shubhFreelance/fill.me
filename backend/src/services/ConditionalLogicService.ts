@@ -41,7 +41,7 @@ export class ConditionalLogicService {
 
       result.fieldStates.set(field.id, {
         visible: isVisible,
-        skipTo: skipTarget,
+        skipTo: skipTarget || undefined,
         reason: this.getLogicReason(field, responses, isVisible, skipTarget)
       });
     });

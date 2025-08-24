@@ -326,9 +326,9 @@ workspaceSchema.virtual('usageLimits').get(function(this: IWorkspace) {
       percentage: limits.maxResponses > 0 ? (analytics.totalResponses / limits.maxResponses) * 100 : 0
     },
     members: {
-      used: this.memberCount,
+      used: this.members.length,
       limit: limits.maxMembers,
-      percentage: limits.maxMembers > 0 ? (this.memberCount / limits.maxMembers) * 100 : 0
+      percentage: limits.maxMembers > 0 ? (this.members.length / limits.maxMembers) * 100 : 0
     },
     storage: {
       used: analytics.storageUsed,
@@ -352,13 +352,14 @@ workspaceSchema.pre('save', async function(next) {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .trim('-');
+      .replace(/^-+|-+$/g, ''); // Remove leading/trailing dashes
     
     let slug = baseSlug;
     let counter = 1;
     
     // Ensure slug is unique
-    while (await this.constructor.findOne({ slug })) {
+    const WorkspaceModel = this.constructor as any;
+    while (await WorkspaceModel.findOne({ slug })) {
       slug = `${baseSlug}-${counter}`;
       counter++;
     }

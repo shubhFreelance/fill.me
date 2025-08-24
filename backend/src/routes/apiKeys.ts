@@ -304,7 +304,7 @@ router.post('/:keyId/regenerate', protect, async (req: AuthenticatedRequest, res
       scopes: existingKey.scopes,
       rateLimit: existingKey.rateLimit,
       restrictions: existingKey.restrictions,
-      expiresAt: existingKey.expiresAt,
+      expiresAt: existingKey.expiresAt || undefined,
       createdFrom: 'regeneration',
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip || req.connection.remoteAddress

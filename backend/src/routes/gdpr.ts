@@ -429,13 +429,7 @@ router.put('/form/:formId/settings', protect, async (req: AuthenticatedRequest, 
       enabled: Boolean(gdprSettings.enabled),
       consentText: gdprSettings.consentText || '',
       privacyPolicyUrl: gdprSettings.privacyPolicyUrl || '',
-      dataRetentionDays: Math.max(1, Math.min(2555, gdprSettings.dataRetentionDays || 365)),
-      legalBasis: gdprSettings.legalBasis || 'consent',
-      dataController: gdprSettings.dataController || {},
-      processingPurposes: gdprSettings.processingPurposes || [],
-      dataCategories: gdprSettings.dataCategories || [],
-      recipients: gdprSettings.recipients || [],
-      internationalTransfers: Boolean(gdprSettings.internationalTransfers)
+      dataRetentionDays: Math.max(1, Math.min(2555, gdprSettings.dataRetentionDays || 365))
     };
 
     await form.save();

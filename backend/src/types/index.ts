@@ -1023,6 +1023,8 @@ export interface ITemplateAnalytics {
   ratingCount: number;
   totalRatings: number;
   views: number;
+  ratings: number[];
+  submissions: number;
 }
 
 // Workspace types

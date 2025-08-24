@@ -508,7 +508,7 @@ router.post('/:id/invite', protect, withValidation(validateInvitation), async (r
     };
 
     workspace.members.push(newMember);
-    workspace.analytics.totalMembers = workspace.members.length;
+    (workspace.analytics as any).totalMembers = workspace.members.length;
     await workspace.save();
 
     await workspace.populate('members.userId', 'firstName lastName email');
@@ -639,7 +639,7 @@ router.delete('/:id/members/:memberId', protect, async (req: AuthenticatedReques
       m.userId.toString() !== req.params.memberId
     );
 
-    workspace.analytics.totalMembers = workspace.members.length;
+    (workspace.analytics as any).totalMembers = workspace.members.length;
     await workspace.save();
 
     res.status(200).json({

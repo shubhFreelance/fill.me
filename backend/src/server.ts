@@ -40,6 +40,7 @@ import exportRoutes from './routes/exports';
 import gdprRoutes from './routes/gdpr';
 import apiKeyRoutes from './routes/apiKeys';
 import adminRoutes from './routes/admin';
+import formBuilderRoutes from './routes/formBuilder';
 import errorHandler from './middleware/errorHandler';
 import { EnvironmentConfig } from './types';
 
@@ -160,6 +161,7 @@ app.use('/api/exports', exportRoutes);
 app.use('/api/gdpr', gdprRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/form-builder', formBuilderRoutes);
 
 // 404 handler
 app.use('*', (req: Request, res: Response) => {

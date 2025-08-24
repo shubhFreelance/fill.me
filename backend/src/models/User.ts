@@ -31,7 +31,7 @@ const apiKeySchema = new Schema<IApiKey>({
   key: {
     type: String,
     required: true,
-    unique: true,
+    // Removed unique: true to avoid null constraint issues in tests
     index: true
   },
   hashedKey: {

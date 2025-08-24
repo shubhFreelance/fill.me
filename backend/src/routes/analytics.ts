@@ -321,7 +321,7 @@ async function getFormStats(formId: string, dateRange: any) {
     })
   ]);
 
-  const conversionRate = form?.analytics.views > 0 
+  const conversionRate = (form?.analytics?.views && form.analytics.views > 0) 
     ? (responsesCount / form.analytics.views) * 100 
     : 0;
 

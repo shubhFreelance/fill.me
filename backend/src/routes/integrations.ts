@@ -6,7 +6,6 @@ import { apiRateLimit, webhookRateLimit } from '../middleware/rateLimiting';
 import Integration from '../models/Integration';
 import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
-import { IIntegration, IWebhookConfig, ISlackConfig, IGoogleSheetsConfig } from '../types';
 import crypto from 'crypto';
 import axios from 'axios';
 
@@ -228,11 +227,11 @@ router.post('/', protect, withValidation(validateIntegration), async (req: Authe
       isActive: true
     });
 
-    const maxIntegrations = req.user!.subscription?.plan === 'pro' ? 100 : 3;
+    const maxIntegrations = req.user!.subscription?.plan === 'professional' ? 100 : 3;
     if (userIntegrationsCount >= maxIntegrations) {
       res.status(403).json({
         success: false,
-        message: `Integration limit reached. ${req.user!.subscription?.plan === 'pro' ? 'Pro' : 'Free'} plan allows up to ${maxIntegrations} active integrations.`
+        message: `Integration limit reached. ${req.user!.subscription?.plan === 'professional' ? 'Pro' : 'Free'} plan allows up to ${maxIntegrations} active integrations.`
       });
       return;
     }
@@ -334,9 +333,9 @@ router.put('/:id', protect, async (req: AuthenticatedRequest, res: Response): Pr
     if (config !== undefined) {
       // Preserve webhook secret if not provided in update
       if (integration.type === 'webhook' && !config.secret) {
-        config.secret = integration.config.secret;
+        config.secret = (integration as any).config.secret;
       }
-      integration.config = config;
+      (integration as any).config = config;
     }
     if (isActive !== undefined) integration.isActive = isActive;
 
@@ -429,16 +428,16 @@ router.post('/:id/test', protect, async (req: AuthenticatedRequest, res: Respons
     }
 
     // Update integration test status
-    integration.lastTested = new Date();
-    integration.testStatus = testResult.success ? 'passed' : 'failed';
+    (integration as any).lastTested = new Date();
+    (integration as any).testStatus = testResult.success ? 'passed' : 'failed';
     await integration.save();
 
     res.status(200).json({
       success: true,
       data: {
         testResult,
-        lastTested: integration.lastTested,
-        testStatus: integration.testStatus
+        lastTested: (integration as any).lastTested,
+        testStatus: (integration as any).testStatus
       }
     });
   } catch (error: any) {
@@ -473,7 +472,7 @@ router.get('/:id/logs', protect, async (req: AuthenticatedRequest, res: Response
     }
 
     // Get logs with pagination
-    const logs = integration.logs || [];
+    const logs = (integration as any).logs || [];
     const startIndex = (parseInt(page) - 1) * parseInt(limit);
     const endIndex = startIndex + parseInt(limit);
     const paginatedLogs = logs.slice(startIndex, endIndex);
@@ -504,7 +503,7 @@ router.get('/:id/logs', protect, async (req: AuthenticatedRequest, res: Response
  */
 async function testWebhookIntegration(integration: any): Promise<any> {
   try {
-    const config = integration.config as IWebhookConfig;
+    const config = integration.config as any;
     
     const testPayload = {
       test: true,
@@ -552,7 +551,7 @@ async function testWebhookIntegration(integration: any): Promise<any> {
  */
 async function testSlackIntegration(integration: any): Promise<any> {
   try {
-    const config = integration.config as ISlackConfig;
+    const config = integration.config as any;
     
     const testMessage = {
       text: `🧪 Integration Test from Youform`,
@@ -620,7 +619,7 @@ async function testSlackIntegration(integration: any): Promise<any> {
  */
 async function testGoogleSheetsIntegration(integration: any): Promise<any> {
   try {
-    const config = integration.config as IGoogleSheetsConfig;
+    const config = integration.config as any;
     
     // This is a simplified test - in a real implementation, you would:
     // 1. Use Google Sheets API with proper authentication
@@ -676,12 +675,12 @@ export async function triggerIntegrations(formId: string, responseData: any): Pr
         await processIntegration(integration, responseData);
         
         // Update success metrics
-        integration.successCount += 1;
-        integration.lastTriggered = new Date();
+        (integration as any).successCount = ((integration as any).successCount || 0) + 1;
+        (integration as any).lastTriggered = new Date();
         
         // Add success log
-        integration.logs = integration.logs || [];
-        integration.logs.unshift({
+        (integration as any).logs = (integration as any).logs || [];
+        (integration as any).logs.unshift({
           timestamp: new Date(),
           status: 'success',
           message: 'Integration executed successfully',
@@ -689,8 +688,8 @@ export async function triggerIntegrations(formId: string, responseData: any): Pr
         });
         
         // Keep only last 100 logs
-        if (integration.logs.length > 100) {
-          integration.logs = integration.logs.slice(0, 100);
+        if ((integration as any).logs.length > 100) {
+          (integration as any).logs = (integration as any).logs.slice(0, 100);
         }
         
         await integration.save();
@@ -698,12 +697,12 @@ export async function triggerIntegrations(formId: string, responseData: any): Pr
         console.error(`Integration ${integration._id} failed:`, error);
         
         // Update error metrics
-        integration.errorCount += 1;
-        integration.lastTriggered = new Date();
+        (integration as any).errorCount = ((integration as any).errorCount || 0) + 1;
+        (integration as any).lastTriggered = new Date();
         
         // Add error log
-        integration.logs = integration.logs || [];
-        integration.logs.unshift({
+        (integration as any).logs = (integration as any).logs || [];
+        (integration as any).logs.unshift({
           timestamp: new Date(),
           status: 'error',
           message: error.message || 'Integration execution failed',
@@ -712,8 +711,8 @@ export async function triggerIntegrations(formId: string, responseData: any): Pr
         });
         
         // Keep only last 100 logs
-        if (integration.logs.length > 100) {
-          integration.logs = integration.logs.slice(0, 100);
+        if ((integration as any).logs.length > 100) {
+          (integration as any).logs = (integration as any).logs.slice(0, 100);
         }
         
         await integration.save();
@@ -747,7 +746,7 @@ async function processIntegration(integration: any, responseData: any): Promise<
  * Process webhook integration
  */
 async function processWebhookIntegration(integration: any, responseData: any): Promise<void> {
-  const config = integration.config as IWebhookConfig;
+  const config = integration.config as any;
   
   const payload = {
     integrationId: integration._id,
@@ -811,7 +810,7 @@ async function processWebhookIntegration(integration: any, responseData: any): P
  * Process Slack integration
  */
 async function processSlackIntegration(integration: any, responseData: any): Promise<void> {
-  const config = integration.config as ISlackConfig;
+  const config = integration.config as any;
   
   // Format form responses for Slack
   const formattedResponses = Object.entries(responseData.responses).map(([key, value]) => ({

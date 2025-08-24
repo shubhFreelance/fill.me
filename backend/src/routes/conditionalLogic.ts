@@ -339,8 +339,8 @@ router.post('/test-conditions', protect, async (req: AuthenticatedRequest, res: 
         testResults: results,
         summary: {
           totalTests: testValues.length,
-          passedTests: results.filter(r => r.result).length,
-          failedTests: results.filter(r => !r.result).length
+          passedTests: results.filter((r: any) => r.result).length,
+          failedTests: results.filter((r: any) => !r.result).length
         }
       }
     });

@@ -3,7 +3,7 @@ import { IForm, IFormResponse } from '../types';
 import Form from '../models/Form';
 import FormResponse from '../models/FormResponse';
 import * as XLSX from 'xlsx';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 import { Readable } from 'stream';
 
 /**
@@ -299,7 +299,7 @@ export class ExportService {
               query[responseKey] = { $regex: filter.value, $options: 'i' };
               break;
             case 'not_empty':
-              query[responseKey] = { $exists: true, $ne: null, $ne: '' };
+              query[responseKey] = { $exists: true, $ne: null, $nin: ['', null] };
               break;
             // Add more operators as needed
           }
